@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>夫婦共有カレンダー</title>
-
 <link rel="manifest" href="manifest.json">
 
 <style>
@@ -54,7 +53,6 @@ button {
 .wife-label { color: #e91e63; }
 .husband-label { color: #2196f3; }
 
-/* select の矢印非表示、ギリギリの高さ */
 select {
   width: 100%;
   font-size: 12px;
@@ -68,7 +66,6 @@ select {
   height: 18px;
 }
 
-/* 色分け */
 .work { background: #e0f7fa; }
 .home { background: #e8f5e9; }
 .holiday { background: #ffebee; }
@@ -98,37 +95,32 @@ select {
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
 <script>
-/* 自分のFirebase設定に変更 */
+/* Firebase設定 */
 const firebaseConfig = {
   apiKey: "AIzaSyBpqGSTUi0169frgCUWY-BWgwVmIVa77bI",
   authDomain: "schedulesharing-5a98b.firebaseapp.com",
   projectId: "schedulesharing-5a98b",
 };
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const calendarId = "family-calendar"; // 夫婦で同じにする
+const calendarId = "family-calendar"; 
 let current = new Date();
-let holidays = {};
-
 const options = ["", "出勤", "在宅", "休日", "その他"];
 const week = ["日","月","火","水","木","金","土"];
 
-/* セレクト用キー */
 function getKey(day,type){
   return `${current.getFullYear()}-${current.getMonth()}-${day}-${type}`;
 }
 
-/* 保存 */
 async function saveData(key,value){
   await db.collection("calendars").doc(calendarId).set({
     [key]: value
   }, {merge:true});
 }
 
-/* select生成 */
 function createSelect(day,type){
   const sel = document.createElement("select");
   sel.dataset.type = type;
@@ -149,7 +141,6 @@ function createSelect(day,type){
   return sel;
 }
 
-/* 色 */
 function applyColor(sel){
   sel.className="";
   if(sel.value==="出勤") sel.classList.add("work");
@@ -158,11 +149,9 @@ function applyColor(sel){
   if(sel.value==="その他") sel.classList.add("other");
 }
 
-/* カレンダー生成 */
-async function generateCalendar(){
+function generateCalendar(){
   const cal = document.getElementById("calendar");
   cal.innerHTML="";
-
   const y=current.getFullYear();
   const m=current.getMonth();
   document.getElementById("title").textContent=`${y}年 ${m+1}月`;
@@ -188,7 +177,6 @@ async function generateCalendar(){
     date.className="date";
     date.textContent=d;
 
-    // 妻・夫ラベルとselect
     const wifeLabel = document.createElement("div");
     wifeLabel.className="label wife-label";
     wifeLabel.textContent="妻";
@@ -209,7 +197,6 @@ async function generateCalendar(){
   }
 }
 
-/* 空欄だけ出勤 */
 function fillWork(type){
   document.querySelectorAll(`select[data-type="${type}"]`).forEach(sel=>{
     if(sel.value===""){
@@ -219,7 +206,6 @@ function fillWork(type){
   });
 }
 
-/* 月削除（個別） */
 function clearMonth(type){
   if(!confirm(`${type==="wife"?"妻":"夫"}のこの月を削除しますか？`)) return;
   const y=current.getFullYear();
@@ -236,7 +222,6 @@ function clearMonth(type){
   }
 }
 
-/* 月変更 */
 function changeMonth(n){
   current.setMonth(current.getMonth()+n);
   generateCalendar();
@@ -256,9 +241,12 @@ firebase.firestore().collection("calendars").doc(calendarId)
   });
 });
 
-/* Service Worker */
+/* Service Worker: キャッシュ無効化 */
 if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js");
+  navigator.serviceWorker.register("sw.js").then(reg=>{
+    // 更新時に強制更新
+    reg.update();
+  });
 }
 
 generateCalendar();
