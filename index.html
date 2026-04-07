@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>夫婦共有カレンダー</title>
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="manifest.json?v=2">
 
 <style>
 body { font-family: sans-serif; margin: 10px; }
@@ -46,7 +46,6 @@ button {
   margin: 2px;
 }
 
-/* 上下に分割するコンテナ */
 .slot {
   flex: 1;
   display: flex;
@@ -55,7 +54,6 @@ button {
   padding: 0;
 }
 
-/* 横点線で妻用・夫用を分ける */
 .day::after {
   content: "";
   position: absolute;
@@ -66,7 +64,6 @@ button {
   pointer-events: none;
 }
 
-/* select は枠いっぱいに */
 select {
   width: 100%;
   font-size: 12px;
@@ -104,9 +101,9 @@ select {
 
 <div class="calendar" id="calendar"></div>
 
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<!-- Firebase SDK（バージョン付きでキャッシュ無効化） -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js?v=2"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js?v=2"></script>
 
 <script>
 const firebaseConfig = {
@@ -188,8 +185,10 @@ function changeMonth(n){ current.setMonth(current.getMonth()+n); generateCalenda
 firebase.firestore().collection("calendars").doc(calendarId)
 .onSnapshot(snap=>{ if(!snap.exists) return; const data = snap.data(); document.querySelectorAll("select").forEach(sel=>{ const key=sel.dataset.key; if(data[key]!==undefined){ sel.value=data[key]; applyColor(sel); } }); });
 
-/* Service Worker: キャッシュ無効化 */
-if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").then(reg=>{ reg.update(); }); }
+/* Service Worker: キャッシュ強制更新 */
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js?v=2").then(reg=>{ reg.update(); });
+}
 
 generateCalendar();
 window.fillWork = fillWork;
