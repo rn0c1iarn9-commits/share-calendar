@@ -34,36 +34,48 @@ button {
 .day {
   border: 1px solid #ccc;
   min-height: 90px;
-  padding: 2px;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .date {
   font-size: 12px;
   font-weight: bold;
   text-align: right;
+  margin: 2px;
 }
 
-.label {
-  font-size: 11px;
+/* 上下に分割するコンテナ */
+.slot {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
   margin: 0;
   padding: 0;
 }
-.wife-label { color: #e91e63; }
-.husband-label { color: #2196f3; }
 
+/* 横点線で妻用・夫用を分ける */
+.day::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  border-top: 1px dotted #999;
+  pointer-events: none;
+}
+
+/* select は枠いっぱいに */
 select {
   width: 100%;
   font-size: 12px;
-  margin: 0;
-  padding: 0;
   border: none;
   background: transparent;
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  height: 18px;
+  height: 100%;
 }
 
 .work { background: #e0f7fa; }
@@ -97,7 +109,6 @@ select {
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-/* Firebase設定 */
 const firebaseConfig = {
   apiKey: "AIzaSyBpqGSTUi0169frgCUWY-BWgwVmIVa77bI",
   authDomain: "schedulesharing-5a98b.firebaseapp.com",
@@ -105,39 +116,20 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-
 const calendarId = "family-calendar"; 
 let current = new Date();
 const options = ["", "出勤", "在宅", "休日", "その他"];
 const week = ["日","月","火","水","木","金","土"];
 
-function getKey(day,type){
-  return `${current.getFullYear()}-${current.getMonth()}-${day}-${type}`;
-}
-
-async function saveData(key,value){
-  await db.collection("calendars").doc(calendarId).set({
-    [key]: value
-  }, {merge:true});
-}
+function getKey(day,type){ return `${current.getFullYear()}-${current.getMonth()}-${day}-${type}`; }
+async function saveData(key,value){ await db.collection("calendars").doc(calendarId).set({ [key]: value }, {merge:true}); }
 
 function createSelect(day,type){
   const sel = document.createElement("select");
   sel.dataset.type = type;
   sel.dataset.key = getKey(day,type);
-
-  options.forEach(o=>{
-    const opt = document.createElement("option");
-    opt.value = o;
-    opt.textContent = o;
-    sel.appendChild(opt);
-  });
-
-  sel.addEventListener("change", ()=>{
-    saveData(sel.dataset.key, sel.value);
-    applyColor(sel);
-  });
-
+  options.forEach(o=>{ const opt=document.createElement("option"); opt.value=o; opt.textContent=o; sel.appendChild(opt); });
+  sel.addEventListener("change", ()=>{ saveData(sel.dataset.key, sel.value); applyColor(sel); });
   return sel;
 }
 
@@ -152,102 +144,52 @@ function applyColor(sel){
 function generateCalendar(){
   const cal = document.getElementById("calendar");
   cal.innerHTML="";
-  const y=current.getFullYear();
-  const m=current.getMonth();
+  const y=current.getFullYear(), m=current.getMonth();
   document.getElementById("title").textContent=`${y}年 ${m+1}月`;
 
-  // 曜日ヘッダ
-  week.forEach(d=>{
-    const h=document.createElement("div");
-    h.className="header";
-    h.textContent=d;
-    cal.appendChild(h);
-  });
+  week.forEach(d=>{ const h=document.createElement("div"); h.className="header"; h.textContent=d; cal.appendChild(h); });
 
   const firstDay = new Date(y,m,1).getDay();
   const lastDay = new Date(y,m+1,0).getDate();
-
   for(let i=0;i<firstDay;i++) cal.appendChild(document.createElement("div"));
 
-  for(let d=1;d<=lastDay;d++){
-    const box=document.createElement("div");
-    box.className="day";
+  for(let d=1; d<=lastDay; d++){
+    const box=document.createElement("div"); box.className="day";
+    const date=document.createElement("div"); date.className="date"; date.textContent=d;
 
-    const date=document.createElement("div");
-    date.className="date";
-    date.textContent=d;
-
-    const wifeLabel = document.createElement("div");
-    wifeLabel.className="label wife-label";
-    wifeLabel.textContent="妻";
-    const wifeSelect = createSelect(d,"wife");
-
-    const husbandLabel = document.createElement("div");
-    husbandLabel.className="label husband-label";
-    husbandLabel.textContent="夫";
-    const husbandSelect = createSelect(d,"husband");
+    const wifeSlot = document.createElement("div"); wifeSlot.className="slot"; wifeSlot.appendChild(createSelect(d,"wife"));
+    const husbandSlot = document.createElement("div"); husbandSlot.className="slot"; husbandSlot.appendChild(createSelect(d,"husband"));
 
     box.appendChild(date);
-    box.appendChild(wifeLabel);
-    box.appendChild(wifeSelect);
-    box.appendChild(husbandLabel);
-    box.appendChild(husbandSelect);
-
+    box.appendChild(wifeSlot);
+    box.appendChild(husbandSlot);
     cal.appendChild(box);
   }
 }
 
 function fillWork(type){
-  document.querySelectorAll(`select[data-type="${type}"]`).forEach(sel=>{
-    if(sel.value===""){
-      sel.value="出勤";
-      sel.dispatchEvent(new Event("change"));
-    }
-  });
+  document.querySelectorAll(`select[data-type="${type}"]`).forEach(sel=>{ if(sel.value===""){ sel.value="出勤"; sel.dispatchEvent(new Event("change")); } });
 }
 
 function clearMonth(type){
   if(!confirm(`${type==="wife"?"妻":"夫"}のこの月を削除しますか？`)) return;
-  const y=current.getFullYear();
-  const m=current.getMonth();
+  const y=current.getFullYear(), m=current.getMonth();
   const last=new Date(y,m+1,0).getDate();
-
-  for(let d=1;d<=last;d++){
+  for(let d=1; d<=last; d++){
     const key=`${y}-${m}-${d}-${type}`;
-    document.querySelectorAll(`select[data-key="${key}"]`).forEach(sel=>{
-      sel.value="";
-      applyColor(sel);
-    });
+    document.querySelectorAll(`select[data-key="${key}"]`).forEach(sel=>{ sel.value=""; applyColor(sel); });
     saveData(key,"");
   }
 }
 
-function changeMonth(n){
-  current.setMonth(current.getMonth()+n);
-  generateCalendar();
-}
+function changeMonth(n){ current.setMonth(current.getMonth()+n); generateCalendar(); }
 
 /* リアルタイム同期 */
 firebase.firestore().collection("calendars").doc(calendarId)
-.onSnapshot(snap=>{
-  if(!snap.exists) return;
-  const data = snap.data();
-  document.querySelectorAll("select").forEach(sel=>{
-    const key = sel.dataset.key;
-    if(data[key]!==undefined){
-      sel.value=data[key];
-      applyColor(sel);
-    }
-  });
-});
+.onSnapshot(snap=>{ if(!snap.exists) return; const data = snap.data(); document.querySelectorAll("select").forEach(sel=>{ const key=sel.dataset.key; if(data[key]!==undefined){ sel.value=data[key]; applyColor(sel); } }); });
 
 /* Service Worker: キャッシュ無効化 */
-if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js").then(reg=>{
-    // 更新時に強制更新
-    reg.update();
-  });
-}
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").then(reg=>{ reg.update(); }); }
 
 generateCalendar();
 window.fillWork = fillWork;
