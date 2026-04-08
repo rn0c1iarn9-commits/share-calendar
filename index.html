@@ -186,8 +186,10 @@ firebase.firestore().collection("calendars").doc(calendarId)
 .onSnapshot(snap=>{ if(!snap.exists) return; const data = snap.data(); document.querySelectorAll("select").forEach(sel=>{ const key=sel.dataset.key; if(data[key]!==undefined){ sel.value=data[key]; applyColor(sel); } }); });
 
 /* Service Worker: キャッシュ強制更新 */
-if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js?v=2").then(reg=>{ reg.update(); });
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js?v=3").then(reg => {
+    reg.update();
+  });
 }
 
 generateCalendar();
