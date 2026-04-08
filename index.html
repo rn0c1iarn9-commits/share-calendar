@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>夫婦共有カレンダー</title>
-<link rel="manifest" href="manifest.json?v=2">
+<link rel="manifest" href="manifest.json?v=4">
 
 <style>
 body { font-family: sans-serif; margin: 10px; }
@@ -102,8 +102,8 @@ select {
 <div class="calendar" id="calendar"></div>
 
 <!-- Firebase SDK（バージョン付きでキャッシュ無効化） -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js?v=2"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js?v=2"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js?v=4"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js?v=4"></script>
 
 <script>
 const firebaseConfig = {
@@ -187,7 +187,7 @@ firebase.firestore().collection("calendars").doc(calendarId)
 
 /* Service Worker: キャッシュ強制更新 */
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=3").then(reg => {
+  navigator.serviceWorker.register("sw.js?v=4").then(reg => {
     reg.update();
   });
 }

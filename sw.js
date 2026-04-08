@@ -1,4 +1,4 @@
-const CACHE_NAME = "family-calendar-v3"; // ← 更新時は必ずバージョン変更
+const CACHE_NAME = "family-calendar-v4"; // ← 更新時は必ずバージョン変更
 
 const urlsToCache = [
   "./",
