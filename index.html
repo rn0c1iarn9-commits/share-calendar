@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>夫婦共有カレンダー</title>
-<link rel="manifest" href="manifest.json?v=5">
+<link rel="manifest" href="manifest.json?v=6">
 
 <style>
 body { font-family: sans-serif; margin: 10px; }
@@ -37,6 +37,13 @@ button {
   display: flex;
   flex-direction: column;
   position: relative;
+  padding: 2px;
+}
+
+/* 当日ハイライト：太い緑枠 */
+.day.today {
+  border: 5px solid #4caf50; /* 太い緑 */
+  box-sizing: border-box;
 }
 
 .date {
@@ -54,10 +61,11 @@ button {
   padding: 0;
 }
 
+/* 点線を妻・夫の間に調整 */
 .day::after {
   content: "";
   position: absolute;
-  top: 50%;
+  top: 60%;
   left: 0;
   width: 100%;
   border-top: 1px dotted #999;
@@ -75,13 +83,17 @@ select {
   height: 100%;
 }
 
-.work { background: #e0f7fa; }
-.home { background: #e8f5e9; }
-.holiday { background: #ffebee; }
-.other { background: #f3e5f5; }
+.work { background: #b66e6e; }   /* 出社 */
+.home { background: #5f89a4; }   /* 在宅 */
+.holiday { background: #6fb381; } /* 休日 */
 
+/* ===== レスポンシブ調整 ===== */
 @media (max-width:600px){
   .day { min-height: 70px; font-size: 10px; }
+  button { font-size: 10px; padding: 4px 6px; margin: 2px; }
+  .calendar { gap: 2px; }
+  .date { font-size: 10px; }
+  select { font-size: 10px; }
 }
 </style>
 </head>
@@ -101,9 +113,9 @@ select {
 
 <div class="calendar" id="calendar"></div>
 
-<!-- Firebase SDK（バージョン付きでキャッシュ無効化） -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js?v=4"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js?v=4"></script>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
 const firebaseConfig = {
@@ -115,23 +127,21 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const calendarId = "family-calendar";
-
 /* ===== 状態管理 ===== */
+const calendarId = "family-calendar";
 let current = new Date();
-let latestData = {};       // ← 最新データ保持
-let unsubscribe = null;    // ← onSnapshot解除用
+let latestData = {};
+let unsubscribe = null;
 
-const options = ["", "出社", "在宅", "休日", "その他"];
+const options = ["", "出社", "在宅", "休日"];
 const week = ["日","月","火","水","木","金","土"];
 
-/* ===== キー生成（※月単位） ===== */
-function getMonthKey(){
+/* ===== キー生成 ===== */
+function getMonthKey() {
   return `${current.getFullYear()}-${current.getMonth()}`;
 }
-
 function getKey(day,type){
-  return `${day}-${type}`; // ← 月はドキュメントで分離
+  return `${day}-${type}`;
 }
 
 /* ===== Firestore保存 ===== */
@@ -166,14 +176,13 @@ function createSelect(day,type){
 }
 
 function applyColor(sel){
-  sel.className="";
+  sel.className = "";
   if(sel.value==="出社") sel.classList.add("work");
   if(sel.value==="在宅") sel.classList.add("home");
   if(sel.value==="休日") sel.classList.add("holiday");
-  if(sel.value==="その他") sel.classList.add("other");
 }
 
-/* ===== データ反映（重要） ===== */
+/* ===== データ反映 ===== */
 function applyDataToUI(){
   document.querySelectorAll("select").forEach(sel=>{
     const key = sel.dataset.key;
@@ -208,16 +217,24 @@ function generateCalendar(){
     const box=document.createElement("div");
     box.className="day";
 
-    const date=document.createElement("div");
-    date.className="date";
-    date.textContent=d;
+    // 当日ハイライト：太い緑枠
+    const today = new Date();
+    if(today.getFullYear() === current.getFullYear() &&
+       today.getMonth() === current.getMonth() &&
+       today.getDate() === d) {
+        box.classList.add("today");
+    }
 
-    const wifeSlot=document.createElement("div");
-    wifeSlot.className="slot";
+    const date = document.createElement("div");
+    date.className = "date";
+    date.textContent = d;
+
+    const wifeSlot = document.createElement("div");
+    wifeSlot.className = "slot";
     wifeSlot.appendChild(createSelect(d,"wife"));
 
-    const husbandSlot=document.createElement("div");
-    husbandSlot.className="slot";
+    const husbandSlot = document.createElement("div");
+    husbandSlot.className = "slot";
     husbandSlot.appendChild(createSelect(d,"husband"));
 
     box.appendChild(date);
@@ -226,28 +243,21 @@ function generateCalendar(){
     cal.appendChild(box);
   }
 
-  /* ← これが重要（即反映） */
   applyDataToUI();
 }
 
-/* ===== 月データ購読（高速化の要） ===== */
+/* ===== 月データ購読 ===== */
 function subscribeMonth(){
-  if(unsubscribe) unsubscribe(); // 前の購読解除
+  if(unsubscribe) unsubscribe();
 
   const monthKey = getMonthKey();
-
   unsubscribe = db.collection("calendars")
     .doc(calendarId)
     .collection("months")
     .doc(monthKey)
     .onSnapshot(snap=>{
-      if(!snap.exists){
-        latestData = {};
-      }else{
-        latestData = snap.data();
-      }
-
-      applyDataToUI(); // ← リアルタイム反映
+      latestData = snap.exists ? snap.data() : {};
+      applyDataToUI();
     });
 }
 
@@ -255,7 +265,7 @@ function subscribeMonth(){
 function changeMonth(n){
   current.setMonth(current.getMonth()+n);
   generateCalendar();
-  subscribeMonth(); // ← 月ごとに切替
+  subscribeMonth();
 }
 
 function fillWork(type){
@@ -270,9 +280,7 @@ function fillWork(type){
 function clearMonth(type){
   if(!confirm(`${type==="wife"?"妻":"夫"}のこの月を削除しますか？`)) return;
 
-  const y=current.getFullYear(), m=current.getMonth();
-  const last=new Date(y,m+1,0).getDate();
-
+  const last=new Date(current.getFullYear(), current.getMonth()+1, 0).getDate();
   for(let d=1; d<=last; d++){
     const key = `${d}-${type}`;
     document.querySelectorAll(`select[data-key="${key}"]`).forEach(sel=>{
@@ -283,11 +291,18 @@ function clearMonth(type){
   }
 }
 
-/* ===== 初期化（高速ロード） ===== */
+/* ===== 初期化 ===== */
 generateCalendar();
 subscribeMonth();
 
-/* グローバル公開 */
+/* ===== Service Worker ===== */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js?v=7").then(reg => {
+    reg.update();
+  });
+}
+
+/* ===== グローバル公開 ===== */
 window.fillWork = fillWork;
 window.clearMonth = clearMonth;
 window.changeMonth = changeMonth;
