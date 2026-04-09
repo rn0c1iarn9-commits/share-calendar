@@ -91,12 +91,12 @@ select {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  height: 100%;
+  height: 90%;
 }
 
 .work { background: #b66e6e; }
 .home { background: #5f89a4; }
-.holiday { background: #6fb381; }
+.dayoff { background: #6fb381; }
 
 .sub { opacity: 0.3; }
 
@@ -177,6 +177,7 @@ const db = firebase.firestore();
 
 let current = new Date();
 let latestData = {};
+let holidays = {};
 let unsubscribe = null;
 
 const options = ["", "出社", "在宅", "休日"];
@@ -188,6 +189,17 @@ let settings = {
   color1: "#ff6666",
   color2: "#6666ff"
 };
+
+async function loadHolidayData(year){
+  try {
+    const res = await fetch(`https://holidays-jp.github.io/api/v1/${year}/date.json`);
+    if (!res.ok) throw new Error("祝日API取得失敗");
+    holidaysOfYear = await res.json();
+  } catch (e) {
+    console.warn("祝日データ取得エラー:", e);
+    holidaysOfYear = {};
+  }
+}
 
 function loadSettings(){
   const s = localStorage.getItem("settings");
@@ -263,7 +275,7 @@ function applyColor(sel){
   sel.className="";
   if(sel.value==="出社") sel.classList.add("work");
   if(sel.value==="在宅") sel.classList.add("home");
-  if(sel.value==="休日") sel.classList.add("holiday");
+  if(sel.value==="休日") sel.classList.add("dayoff");
 }
 
 function applyData(){
@@ -277,9 +289,11 @@ function applyData(){
   });
 }
 
-function generateCalendar(){
+async function generateCalendar(){  
+  // まず祝日を読み込む
+  const y = current.getFullYear();
+  await loadHolidayData(y);
   calendar.innerHTML="";
-  const y=current.getFullYear();
   const m=current.getMonth();
   title.textContent=`${y}年 ${m+1}月`;
 
@@ -322,7 +336,13 @@ function generateCalendar(){
 
     const today = new Date();
     if(formatDateKey(today) === formatDateKey(dateObj)) box.classList.add("today");
-    if(dateObj.getDay()===0) box.classList.add("sun");
+    if(dateObj.getDay() === 0) box.classList.add("sun");
+
+    // 祝日判定（APIデータにあるかどうか）
+    const key = formatDateKey(dateObj);
+    if (holidaysOfYear[key]) {
+      box.classList.add("holiday");
+    }
     // 祝日例
     const holidays=["2026-01-01","2026-01-13"];
     if(holidays.includes(formatDateKey(dateObj))) box.classList.add("holiday");
