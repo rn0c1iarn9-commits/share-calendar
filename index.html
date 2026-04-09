@@ -3,14 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>共有カレンダー</title>
-
 <style>
 body { font-family: sans-serif; margin: 10px; }
-h2 { text-align: center; }
+h2 { text-align: center; margin:0; }
 
-/* ===== 左上固定 ===== */
 .top-left {
   position: fixed;
   top: 10px;
@@ -34,6 +31,7 @@ button {
   text-align: center;
   font-weight: bold;
   background: #eee;
+  padding: 2px 0;
 }
 
 .day {
@@ -48,7 +46,26 @@ button {
 
 .date {
   font-size: 12px;
-  text-align: right;
+  font-weight: bold;
+  text-align: center;
+  margin: 2px 0;
+}
+
+.day.sun .date,
+.day.holiday .date { color: red; }
+
+#title {
+  cursor: pointer;
+  text-decoration: underline;
+  color: #333;
+}
+
+.nav-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 5px 0;
+  gap: 5px; /* タイトルと矢印の間隔を狭く */
 }
 
 .slot {
@@ -83,7 +100,6 @@ select {
 
 .sub { opacity: 0.3; }
 
-/* 設定 */
 #settings {
   display:none;
   position:fixed;
@@ -95,24 +111,28 @@ select {
   padding:15px;
   z-index:2000;
 }
+
+#fill-buttons {
+  text-align:center;
+  margin:10px 0;
+}
 </style>
 </head>
-
 <body>
 
-<!-- 左上UI -->
 <div class="top-left">
-  <button onclick="openSettings()">⚙️</button><br>
-  <button id="clear1" onclick="clearMonth('user1')"></button><br>
-  <button id="clear2" onclick="clearMonth('user2')"></button>
+  <button onclick="openSettings()">⚙️</button>
 </div>
 
-<h2 id="title"></h2>
-
-<div style="text-align:center;">
+<!-- 月タイトルと矢印 -->
+<div class="nav-buttons">
   <button onclick="changeMonth(-1)">←</button>
-  <button onclick="changeMonth(1)">→</button><br>
+  <h2 id="title" onclick="goToCurrentMonth()"></h2>
+  <button onclick="changeMonth(1)">→</button>
+</div>
 
+<!-- 「空欄→出社」ボタンは設定外、設定ボタン下 -->
+<div id="fill-buttons">
   <button id="fill1" onclick="fillWork('user1')"></button>
   <button id="fill2" onclick="fillWork('user2')"></button>
 </div>
@@ -122,13 +142,22 @@ select {
 <!-- 設定 -->
 <div id="settings">
   <h3>設定</h3>
-
-  User1 名前：<input id="name1"><br>
-  User1 色：<input type="color" id="color1"><br><br>
-
-  User2 名前：<input id="name2"><br>
-  User2 色：<input type="color" id="color2"><br><br>
-
+  <div>
+    User1 名前：<input id="name1">
+    <button id="clear1" onclick="clearMonth('user1')"></button>
+  </div>
+  <div>
+    User1 色：<input type="color" id="color1">
+  </div>
+  <br>
+  <div>
+    User2 名前：<input id="name2">
+    <button id="clear2" onclick="clearMonth('user2')"></button>
+  </div>
+  <div>
+    User2 色：<input type="color" id="color2">
+  </div>
+  <br>
   <button onclick="saveSettings()">保存</button>
   <button onclick="closeSettings()">閉じる</button>
 </div>
@@ -146,7 +175,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-/* ===== 状態 ===== */
 let current = new Date();
 let latestData = {};
 let unsubscribe = null;
@@ -154,7 +182,6 @@ let unsubscribe = null;
 const options = ["", "出社", "在宅", "休日"];
 const week = ["日","月","火","水","木","金","土"];
 
-/* ===== 設定 ===== */
 let settings = {
   name1: "User1",
   name2: "User2",
@@ -167,13 +194,12 @@ function loadSettings(){
   if(s) settings = JSON.parse(s);
 }
 
-/* ===== UI反映（重要） ===== */
 function applySettingsUI(){
   fill1.textContent = `${settings.name1}：空欄→出社`;
   fill2.textContent = `${settings.name2}：空欄→出社`;
 
-  clear1.textContent = `${settings.name1}：全削除`;
-  clear2.textContent = `${settings.name2}：全削除`;
+  clear1.textContent = `${settings.name1}：表示月の入力削除`;
+  clear2.textContent = `${settings.name2}：表示月の入力削除`;
 
   fill1.style.color = settings.color1;
   fill2.style.color = settings.color2;
@@ -181,10 +207,8 @@ function applySettingsUI(){
   clear2.style.color = settings.color2;
 }
 
-/* ===== 設定操作 ===== */
 function openSettings(){
   document.getElementById("settings").style.display="block";
-
   name1.value = settings.name1;
   name2.value = settings.name2;
   color1.value = settings.color1;
@@ -200,19 +224,16 @@ function saveSettings(){
   settings.name2 = name2.value;
   settings.color1 = color1.value;
   settings.color2 = color2.value;
-
   localStorage.setItem("settings", JSON.stringify(settings));
   applySettingsUI();
   closeSettings();
   generateCalendar();
 }
 
-/* ===== 日付キー ===== */
 function formatDateKey(date){
   return date.toISOString().split("T")[0];
 }
 
-/* ===== 保存 ===== */
 function saveData(date,type,value){
   return db.collection("calendars")
     .doc("family-calendar")
@@ -221,13 +242,10 @@ function saveData(date,type,value){
     .set({[type]:value},{merge:true});
 }
 
-/* ===== UI ===== */
 function createSelect(date,type){
   const sel=document.createElement("select");
-
   sel.dataset.date = formatDateKey(date);
   sel.dataset.type = type;
-
   sel.style.color = type==="user1" ? settings.color1 : settings.color2;
 
   options.forEach(o=>{
@@ -237,11 +255,7 @@ function createSelect(date,type){
     sel.appendChild(opt);
   });
 
-  sel.onchange=()=>{
-    saveData(date,type,sel.value);
-    applyColor(sel);
-  };
-
+  sel.onchange=()=>{ saveData(date,type,sel.value); applyColor(sel); };
   return sel;
 }
 
@@ -252,12 +266,10 @@ function applyColor(sel){
   if(sel.value==="休日") sel.classList.add("holiday");
 }
 
-/* ===== データ反映 ===== */
 function applyData(){
   document.querySelectorAll("select").forEach(sel=>{
     const d=sel.dataset.date;
     const t=sel.dataset.type;
-
     if(latestData[d] && latestData[d][t]){
       sel.value=latestData[d][t];
       applyColor(sel);
@@ -265,13 +277,10 @@ function applyData(){
   });
 }
 
-/* ===== カレンダー ===== */
 function generateCalendar(){
   calendar.innerHTML="";
-
   const y=current.getFullYear();
   const m=current.getMonth();
-
   title.textContent=`${y}年 ${m+1}月`;
 
   // 曜日ヘッダー
@@ -285,106 +294,91 @@ function generateCalendar(){
   const firstDay = new Date(y,m,1).getDay();
   const lastDate = new Date(y,m+1,0).getDate();
   const prevLast = new Date(y,m,0).getDate();
-
   let days = [];
 
-  // ===== 前月（最大6）=====
+  // 前月
   for(let i=firstDay-1;i>=0;i--){
     const d = prevLast - i;
-    const dateObj = new Date(y, m-1, d);
-    days.push({date:dateObj, sub:true});
+    days.push({date:new Date(y, m-1, d), sub:true});
   }
-
-  // ===== 当月 =====
+  // 当月
   for(let d=1; d<=lastDate; d++){
-    const dateObj = new Date(y, m, d);
-    days.push({date:dateObj, sub:false});
+    days.push({date:new Date(y, m, d), sub:false});
   }
-
-  // ===== 翌月（最大6）=====
+  // 翌月
   const remain = 7 - (days.length % 7);
   if(remain < 7){
     for(let i=1; i<=remain; i++){
-      const dateObj = new Date(y, m+1, i);
-      days.push({date:dateObj, sub:true});
+      days.push({date:new Date(y, m+1, i), sub:true});
     }
   }
 
-  // ===== 描画 =====
+  // 描画
   days.forEach(obj=>{
     const dateObj = obj.date;
-
     const box=document.createElement("div");
     box.className="day";
-
     if(obj.sub) box.classList.add("sub");
 
-    // 今日
     const today = new Date();
-    if(formatDateKey(today) === formatDateKey(dateObj)){
-      box.classList.add("today");
-    }
+    if(formatDateKey(today) === formatDateKey(dateObj)) box.classList.add("today");
+    if(dateObj.getDay()===0) box.classList.add("sun");
+    // 祝日例
+    const holidays=["2026-01-01","2026-01-13"];
+    if(holidays.includes(formatDateKey(dateObj))) box.classList.add("holiday");
 
     const date=document.createElement("div");
     date.className="date";
     date.textContent=dateObj.getDate();
 
     const s1=document.createElement("div");
-    s1.className="slot";
-    s1.appendChild(createSelect(dateObj,"user1"));
-
+    s1.className="slot"; s1.appendChild(createSelect(dateObj,"user1"));
     const s2=document.createElement("div");
-    s2.className="slot";
-    s2.appendChild(createSelect(dateObj,"user2"));
+    s2.className="slot"; s2.appendChild(createSelect(dateObj,"user2"));
 
     box.append(date,s1,s2);
     calendar.appendChild(box);
   });
-
   applyData();
 }
 
-/* ===== Firestore ===== */
 function subscribe(){
   if(unsubscribe) unsubscribe();
-
   unsubscribe = db.collection("calendars")
     .doc("family-calendar")
     .collection("days")
     .onSnapshot(snap=>{
       latestData={};
-      snap.forEach(doc=>{
-        latestData[doc.id]=doc.data();
-      });
+      snap.forEach(doc=>{ latestData[doc.id]=doc.data(); });
       applyData();
     });
 }
 
-/* ===== 操作 ===== */
-function changeMonth(n){
-  current.setMonth(current.getMonth()+n);
-  generateCalendar();
-}
+function changeMonth(n){ current.setMonth(current.getMonth()+n); generateCalendar(); }
 
 function fillWork(type){
   document.querySelectorAll(`select[data-type="${type}"]`).forEach(sel=>{
-    if(!sel.value){
-      sel.value="出社";
-      sel.dispatchEvent(new Event("change"));
-    }
+    if(!sel.value){ sel.value="出社"; sel.dispatchEvent(new Event("change")); }
   });
 }
 
 function clearMonth(type){
   if(!confirm("削除しますか？")) return;
 
+  const y = current.getFullYear();
+  const m = current.getMonth();
+
   document.querySelectorAll(`select[data-type="${type}"]`).forEach(sel=>{
-    sel.value="";
-    sel.dispatchEvent(new Event("change"));
+    const selDate = new Date(sel.dataset.date);
+    if(selDate.getFullYear() === y && selDate.getMonth() === m){
+      sel.value="";
+      sel.dispatchEvent(new Event("change"));
+    }
   });
 }
 
-/* ===== スワイプ ===== */
+function goToCurrentMonth(){ current=new Date(); generateCalendar(); }
+
 let startX=0;
 document.addEventListener("touchstart",e=>startX=e.touches[0].clientX);
 document.addEventListener("touchend",e=>{
@@ -393,17 +387,13 @@ document.addEventListener("touchend",e=>{
   if(diff<-50) changeMonth(1);
 });
 
-/* ===== 初期化 ===== */
 loadSettings();
 applySettingsUI();
 generateCalendar();
 subscribe();
 
-/* ===== Service Worker ===== */
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=8").then(reg => {
-    reg.update();
-  });
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js?v=8").then(reg=>{ reg.update(); });
 }
 </script>
 
