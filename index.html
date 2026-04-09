@@ -61,7 +61,7 @@ button {
 .day::after {
   content: "";
   position: absolute;
-  top: 50%;
+  top: 60%;
   width: 100%;
   border-top: 1px dotted #aaa;
 }
@@ -71,6 +71,10 @@ select {
   text-align: center;
   border: none;
   background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  height: 100%;
 }
 
 .work { background: #b66e6e; }
@@ -397,7 +401,7 @@ subscribe();
 
 /* ===== Service Worker ===== */
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=7").then(reg => {
+  navigator.serviceWorker.register("sw.js?v=8").then(reg => {
     reg.update();
   });
 }
