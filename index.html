@@ -3,14 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>夫婦共有カレンダー</title>
-<link rel="manifest" href="manifest.json?v=6">
+
+<title>共有カレンダー</title>
 
 <style>
 body { font-family: sans-serif; margin: 10px; }
 h2 { text-align: center; }
 
-.controls { text-align: center; margin-bottom: 10px; }
+/* ===== 左上固定 ===== */
+.top-left {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+}
 
 button {
   padding: 6px 8px;
@@ -28,7 +34,6 @@ button {
   text-align: center;
   font-weight: bold;
   background: #eee;
-  padding: 2px 0;
 }
 
 .day {
@@ -37,83 +42,93 @@ button {
   display: flex;
   flex-direction: column;
   position: relative;
-  padding: 2px;
 }
 
-/* 当日ハイライト：太い緑枠 */
-.day.today {
-  border: 5px solid #4caf50; /* 太い緑 */
-  box-sizing: border-box;
-}
+.day.today { border: 4px solid #4caf50; }
 
 .date {
   font-size: 12px;
-  font-weight: bold;
   text-align: right;
-  margin: 2px;
 }
 
 .slot {
   flex: 1;
   display: flex;
-  align-items: stretch;
-  margin: 0;
-  padding: 0;
+  align-items: center;
+  justify-content: center;
 }
 
-/* 点線を妻・夫の間に調整 */
 .day::after {
   content: "";
   position: absolute;
-  top: 60%;
-  left: 0;
+  top: 50%;
   width: 100%;
-  border-top: 1px dotted #999;
-  pointer-events: none;
+  border-top: 1px dotted #aaa;
 }
 
 select {
   width: 100%;
-  font-size: 12px;
+  text-align: center;
   border: none;
   background: transparent;
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  height: 100%;
 }
 
-.work { background: #b66e6e; }   /* 出社 */
-.home { background: #5f89a4; }   /* 在宅 */
-.holiday { background: #6fb381; } /* 休日 */
+.work { background: #b66e6e; }
+.home { background: #5f89a4; }
+.holiday { background: #6fb381; }
 
-/* ===== レスポンシブ調整 ===== */
-@media (max-width:600px){
-  .day { min-height: 70px; font-size: 10px; }
-  button { font-size: 10px; padding: 4px 6px; margin: 2px; }
-  .calendar { gap: 2px; }
-  .date { font-size: 10px; }
-  select { font-size: 10px; }
+.sub { opacity: 0.3; }
+
+/* 設定 */
+#settings {
+  display:none;
+  position:fixed;
+  top:20%;
+  left:10%;
+  width:80%;
+  background:#fff;
+  border:1px solid #ccc;
+  padding:15px;
+  z-index:2000;
 }
 </style>
 </head>
 
 <body>
 
+<!-- 左上UI -->
+<div class="top-left">
+  <button onclick="openSettings()">⚙️</button><br>
+  <button id="clear1" onclick="clearMonth('user1')"></button><br>
+  <button id="clear2" onclick="clearMonth('user2')"></button>
+</div>
+
 <h2 id="title"></h2>
 
-<div class="controls">
+<div style="text-align:center;">
   <button onclick="changeMonth(-1)">←</button>
   <button onclick="changeMonth(1)">→</button><br>
-  <button onclick="fillWork('wife')">さっちゃん：空欄→出社</button>
-  <button onclick="fillWork('husband')">夫：空欄→出社</button><br>
-  <button onclick="clearMonth('wife')">さっちゃん：この月を全消去</button>
-  <button onclick="clearMonth('husband')">夫：この月を全消去</button>
+
+  <button id="fill1" onclick="fillWork('user1')"></button>
+  <button id="fill2" onclick="fillWork('user2')"></button>
 </div>
 
 <div class="calendar" id="calendar"></div>
 
-<!-- Firebase SDK -->
+<!-- 設定 -->
+<div id="settings">
+  <h3>設定</h3>
+
+  User1 名前：<input id="name1"><br>
+  User1 色：<input type="color" id="color1"><br><br>
+
+  User2 名前：<input id="name2"><br>
+  User2 色：<input type="color" id="color2"><br><br>
+
+  <button onclick="saveSettings()">保存</button>
+  <button onclick="closeSettings()">閉じる</button>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
@@ -127,8 +142,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-/* ===== 状態管理 ===== */
-const calendarId = "family-calendar";
+/* ===== 状態 ===== */
 let current = new Date();
 let latestData = {};
 let unsubscribe = null;
@@ -136,29 +150,81 @@ let unsubscribe = null;
 const options = ["", "出社", "在宅", "休日"];
 const week = ["日","月","火","水","木","金","土"];
 
-/* ===== キー生成 ===== */
-function getMonthKey() {
-  return `${current.getFullYear()}-${current.getMonth()}`;
-}
-function getKey(day,type){
-  return `${day}-${type}`;
+/* ===== 設定 ===== */
+let settings = {
+  name1: "User1",
+  name2: "User2",
+  color1: "#ff6666",
+  color2: "#6666ff"
+};
+
+function loadSettings(){
+  const s = localStorage.getItem("settings");
+  if(s) settings = JSON.parse(s);
 }
 
-/* ===== Firestore保存 ===== */
-async function saveData(key,value){
-  const monthKey = getMonthKey();
-  await db.collection("calendars")
-    .doc(calendarId)
-    .collection("months")
-    .doc(monthKey)
-    .set({ [key]: value }, {merge:true});
+/* ===== UI反映（重要） ===== */
+function applySettingsUI(){
+  fill1.textContent = `${settings.name1}：空欄→出社`;
+  fill2.textContent = `${settings.name2}：空欄→出社`;
+
+  clear1.textContent = `${settings.name1}：全削除`;
+  clear2.textContent = `${settings.name2}：全削除`;
+
+  fill1.style.color = settings.color1;
+  fill2.style.color = settings.color2;
+  clear1.style.color = settings.color1;
+  clear2.style.color = settings.color2;
 }
 
-/* ===== UI作成 ===== */
-function createSelect(day,type){
-  const sel = document.createElement("select");
+/* ===== 設定操作 ===== */
+function openSettings(){
+  document.getElementById("settings").style.display="block";
+
+  name1.value = settings.name1;
+  name2.value = settings.name2;
+  color1.value = settings.color1;
+  color2.value = settings.color2;
+}
+
+function closeSettings(){
+  document.getElementById("settings").style.display="none";
+}
+
+function saveSettings(){
+  settings.name1 = name1.value;
+  settings.name2 = name2.value;
+  settings.color1 = color1.value;
+  settings.color2 = color2.value;
+
+  localStorage.setItem("settings", JSON.stringify(settings));
+  applySettingsUI();
+  closeSettings();
+  generateCalendar();
+}
+
+/* ===== 日付キー ===== */
+function formatDateKey(date){
+  return date.toISOString().split("T")[0];
+}
+
+/* ===== 保存 ===== */
+function saveData(date,type,value){
+  return db.collection("calendars")
+    .doc("family-calendar")
+    .collection("days")
+    .doc(formatDateKey(date))
+    .set({[type]:value},{merge:true});
+}
+
+/* ===== UI ===== */
+function createSelect(date,type){
+  const sel=document.createElement("select");
+
+  sel.dataset.date = formatDateKey(date);
   sel.dataset.type = type;
-  sel.dataset.key = getKey(day,type);
+
+  sel.style.color = type==="user1" ? settings.color1 : settings.color2;
 
   options.forEach(o=>{
     const opt=document.createElement("option");
@@ -167,97 +233,126 @@ function createSelect(day,type){
     sel.appendChild(opt);
   });
 
-  sel.addEventListener("change", ()=>{
-    saveData(sel.dataset.key, sel.value);
+  sel.onchange=()=>{
+    saveData(date,type,sel.value);
     applyColor(sel);
-  });
+  };
 
   return sel;
 }
 
 function applyColor(sel){
-  sel.className = "";
+  sel.className="";
   if(sel.value==="出社") sel.classList.add("work");
   if(sel.value==="在宅") sel.classList.add("home");
   if(sel.value==="休日") sel.classList.add("holiday");
 }
 
 /* ===== データ反映 ===== */
-function applyDataToUI(){
+function applyData(){
   document.querySelectorAll("select").forEach(sel=>{
-    const key = sel.dataset.key;
-    if(latestData[key] !== undefined){
-      sel.value = latestData[key];
+    const d=sel.dataset.date;
+    const t=sel.dataset.type;
+
+    if(latestData[d] && latestData[d][t]){
+      sel.value=latestData[d][t];
       applyColor(sel);
     }
   });
 }
 
-/* ===== カレンダー生成 ===== */
+/* ===== カレンダー ===== */
 function generateCalendar(){
-  const cal = document.getElementById("calendar");
-  cal.innerHTML="";
+  calendar.innerHTML="";
 
-  const y=current.getFullYear(), m=current.getMonth();
-  document.getElementById("title").textContent=`${y}年 ${m+1}月`;
+  const y=current.getFullYear();
+  const m=current.getMonth();
 
+  title.textContent=`${y}年 ${m+1}月`;
+
+  // 曜日ヘッダー
   week.forEach(d=>{
     const h=document.createElement("div");
     h.className="header";
     h.textContent=d;
-    cal.appendChild(h);
+    calendar.appendChild(h);
   });
 
   const firstDay = new Date(y,m,1).getDay();
-  const lastDay = new Date(y,m+1,0).getDate();
+  const lastDate = new Date(y,m+1,0).getDate();
+  const prevLast = new Date(y,m,0).getDate();
 
-  for(let i=0;i<firstDay;i++) cal.appendChild(document.createElement("div"));
+  let days = [];
 
-  for(let d=1; d<=lastDay; d++){
+  // ===== 前月（最大6）=====
+  for(let i=firstDay-1;i>=0;i--){
+    const d = prevLast - i;
+    const dateObj = new Date(y, m-1, d);
+    days.push({date:dateObj, sub:true});
+  }
+
+  // ===== 当月 =====
+  for(let d=1; d<=lastDate; d++){
+    const dateObj = new Date(y, m, d);
+    days.push({date:dateObj, sub:false});
+  }
+
+  // ===== 翌月（最大6）=====
+  const remain = 7 - (days.length % 7);
+  if(remain < 7){
+    for(let i=1; i<=remain; i++){
+      const dateObj = new Date(y, m+1, i);
+      days.push({date:dateObj, sub:true});
+    }
+  }
+
+  // ===== 描画 =====
+  days.forEach(obj=>{
+    const dateObj = obj.date;
+
     const box=document.createElement("div");
     box.className="day";
 
-    // 当日ハイライト：太い緑枠
+    if(obj.sub) box.classList.add("sub");
+
+    // 今日
     const today = new Date();
-    if(today.getFullYear() === current.getFullYear() &&
-       today.getMonth() === current.getMonth() &&
-       today.getDate() === d) {
-        box.classList.add("today");
+    if(formatDateKey(today) === formatDateKey(dateObj)){
+      box.classList.add("today");
     }
 
-    const date = document.createElement("div");
-    date.className = "date";
-    date.textContent = d;
+    const date=document.createElement("div");
+    date.className="date";
+    date.textContent=dateObj.getDate();
 
-    const wifeSlot = document.createElement("div");
-    wifeSlot.className = "slot";
-    wifeSlot.appendChild(createSelect(d,"wife"));
+    const s1=document.createElement("div");
+    s1.className="slot";
+    s1.appendChild(createSelect(dateObj,"user1"));
 
-    const husbandSlot = document.createElement("div");
-    husbandSlot.className = "slot";
-    husbandSlot.appendChild(createSelect(d,"husband"));
+    const s2=document.createElement("div");
+    s2.className="slot";
+    s2.appendChild(createSelect(dateObj,"user2"));
 
-    box.appendChild(date);
-    box.appendChild(wifeSlot);
-    box.appendChild(husbandSlot);
-    cal.appendChild(box);
-  }
+    box.append(date,s1,s2);
+    calendar.appendChild(box);
+  });
 
-  applyDataToUI();
+  applyData();
 }
 
-/* ===== 月データ購読 ===== */
-function subscribeMonth(){
+/* ===== Firestore ===== */
+function subscribe(){
   if(unsubscribe) unsubscribe();
 
-  const monthKey = getMonthKey();
   unsubscribe = db.collection("calendars")
-    .doc(calendarId)
-    .collection("months")
-    .doc(monthKey)
+    .doc("family-calendar")
+    .collection("days")
     .onSnapshot(snap=>{
-      latestData = snap.exists ? snap.data() : {};
-      applyDataToUI();
+      latestData={};
+      snap.forEach(doc=>{
+        latestData[doc.id]=doc.data();
+      });
+      applyData();
     });
 }
 
@@ -265,12 +360,11 @@ function subscribeMonth(){
 function changeMonth(n){
   current.setMonth(current.getMonth()+n);
   generateCalendar();
-  subscribeMonth();
 }
 
 function fillWork(type){
   document.querySelectorAll(`select[data-type="${type}"]`).forEach(sel=>{
-    if(sel.value===""){
+    if(!sel.value){
       sel.value="出社";
       sel.dispatchEvent(new Event("change"));
     }
@@ -278,34 +372,35 @@ function fillWork(type){
 }
 
 function clearMonth(type){
-  if(!confirm(`${type==="wife"?"妻":"夫"}のこの月を削除しますか？`)) return;
+  if(!confirm("削除しますか？")) return;
 
-  const last=new Date(current.getFullYear(), current.getMonth()+1, 0).getDate();
-  for(let d=1; d<=last; d++){
-    const key = `${d}-${type}`;
-    document.querySelectorAll(`select[data-key="${key}"]`).forEach(sel=>{
-      sel.value="";
-      applyColor(sel);
-    });
-    saveData(key,"");
-  }
-}
-
-/* ===== 初期化 ===== */
-generateCalendar();
-subscribeMonth();
-
-/* ===== Service Worker ===== */
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js?v=6").then(reg => {
-    reg.update();
+  document.querySelectorAll(`select[data-type="${type}"]`).forEach(sel=>{
+    sel.value="";
+    sel.dispatchEvent(new Event("change"));
   });
 }
 
-/* ===== グローバル公開 ===== */
-window.fillWork = fillWork;
-window.clearMonth = clearMonth;
-window.changeMonth = changeMonth;
+/* ===== スワイプ ===== */
+let startX=0;
+document.addEventListener("touchstart",e=>startX=e.touches[0].clientX);
+document.addEventListener("touchend",e=>{
+  const diff=e.changedTouches[0].clientX-startX;
+  if(diff>50) changeMonth(-1);
+  if(diff<-50) changeMonth(1);
+});
+
+/* ===== 初期化 ===== */
+loadSettings();
+applySettingsUI();
+generateCalendar();
+subscribe();
+
+/* ===== Service Worker ===== */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js?v=7").then(reg => {
+    reg.update();
+  });
+}
 </script>
 
 </body>
