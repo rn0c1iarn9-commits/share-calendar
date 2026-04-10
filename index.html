@@ -292,11 +292,6 @@ let latestData = {};
 let holidaysOfYear = {};
 let unsubscribe = null;
 
-let velocity = 0;
-let lastX = 0;
-let lastTime = 0;
-let animationId = null;
-
 const options = ["", "出社", "在宅", "休日"];
 const week = ["日","月","火","水","木","金","土"];
 
@@ -555,69 +550,34 @@ let startX = 0;
 let currentX = 0;
 let dragging = false;
 
-document.addEventListener("touchstart", (e) => {
+document.addEventListener("touchstart",(e)=>{
   startX = e.touches[0].clientX;
-  lastX = startX;
-  lastTime = performance.now();
-  velocity = 0;
   dragging = true;
-
-  cancelAnimationFrame(animationId);
   calendarEl.style.transition = "none";
 });
 
-document.addEventListener("touchmove", (e) => {
-  if (!dragging) return;
-
-  const x = e.touches[0].clientX;
-  const now = performance.now();
-
-  const dt = now - lastTime;
-
-  if (dt > 0) {
-    velocity = (x - lastX) / dt; // px/ms
-  }
-
-  lastX = x;
-  lastTime = now;
-
-  const diff = x - startX;
+document.addEventListener("touchmove",(e)=>{
+  if(!dragging) return;
+  currentX = e.touches[0].clientX;
+  const diff = currentX - startX;
   calendarEl.style.transform = `translateX(${diff}px)`;
 });
 
-document.addEventListener("touchend", () => {
-  if (!dragging) return;
+document.addEventListener("touchend",()=>{
+  if(!dragging) return;
   dragging = false;
 
-  cancelAnimationFrame(animationId);
-  animationId = requestAnimationFrame(applyFriction);
-});
+  const diff = currentX - startX;
 
-function applyFriction(){
-  let pos = parseFloat(calendarEl.dataset.pos || 0);
-
-  const friction = 0.92;
-
-  velocity *= friction;
-  pos += velocity * 16; // 16ms想定
-
-  calendarEl.dataset.pos = pos;
-  calendarEl.style.transform = `translateX(${pos}px)`;
-
-  if (Math.abs(velocity) > 0.02) {
-    animationId = requestAnimationFrame(applyFriction);
+  if(diff > 80){
+    changeMonth(-1);
+  } else if(diff < -80){
+    changeMonth(1);
   } else {
-    // スナップ判定
-    if (pos > 80) {
-      changeMonth(-1);
-    } else if (pos < -80) {
-      changeMonth(1);
-    } else {
-      calendarEl.style.transition = "transform 0.2s ease";
-      calendarEl.style.transform = "translateX(0)";
-    }
+    calendarEl.style.transition = "transform 0.2s ease";
+    calendarEl.style.transform = "translateX(0)";
   }
-}
+});
 
 function fillWork(type){
 
