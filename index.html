@@ -245,6 +245,13 @@ select:disabled {
     opacity: 1;
   }
 }
+
+@media (max-width: 600px) {
+  #settings input[type="text"] {
+    width: 45%;
+    max-width: 140px;
+  }
+}
 </style>
 </head>
 <body>
@@ -305,10 +312,25 @@ const db = firebase.firestore();
 const calendarEl = document.getElementById("calendar");
 const titleEl = document.getElementById("title");
 
+titleEl.addEventListener("touchstart", (e) => {
+  pressTimer = setTimeout(() => {
+    openMonthPicker();
+  }, 600); // 長押し判定（0.6秒）
+});
+
+titleEl.addEventListener("touchend", () => {
+  clearTimeout(pressTimer);
+});
+
+titleEl.addEventListener("touchmove", () => {
+  clearTimeout(pressTimer);
+});
+
 let current = new Date();
 let latestData = {};
 let holidaysOfYear = {};
 let unsubscribe = null;
+let pressTimer = null;
 
 const options = ["", "出社", "在宅", "休日"];
 const week = ["日","月","火","水","木","金","土"];
@@ -734,6 +756,31 @@ function applyLockToUI(){
 }
 
 function goToCurrentMonth(){ current=new Date(); generateCalendar(); }
+
+function openMonthPicker(){
+
+  const input = prompt("飛びたい年月を入力してください（例：2026-04）");
+
+  if(!input) return;
+
+  const match = input.match(/^(\d{4})-(\d{1,2})$/);
+
+  if(!match){
+    alert("形式は YYYY-MM です");
+    return;
+  }
+
+  const y = parseInt(match[1]);
+  const m = parseInt(match[2]) - 1;
+
+  if(m < 0 || m > 11){
+    alert("月は1〜12です");
+    return;
+  }
+
+  current = new Date(y, m, 1);
+  generateCalendar();
+}
 
 /* =========================
    初期化
