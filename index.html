@@ -178,6 +178,14 @@ select {
   border: 1px solid #ccc;
 }
 
+.setting-row button:first-child {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 16px;
+  padding: 0;
+}
+
 /* 便利ボタンエリア */
 #fill-buttons {
   text-align: center;
@@ -225,6 +233,12 @@ select {
   animation: slideIn 0.35s forwards;
 }
 
+select:disabled {
+  opacity: 1;
+  background: #eee;
+  cursor: not-allowed;
+}
+
 @keyframes slideIn {
   to {
     transform: translateX(0);
@@ -258,12 +272,14 @@ select {
 <div id="settings">
   <h3>設定</h3>
   <div>
+    <button id="lock1Btn" onclick="toggleLock('user1')">🔓</button>
     User1：<input id="name1">
     <input type="color" id="color1">
     <button id="clear1" onclick="clearMonth('user1')"></button>
   </div>
   <br>
   <div>
+    <button id="lock2Btn" onclick="toggleLock('user2')">🔓</button>
     User2：<input id="name2">
     <input type="color" id="color2">
     <button id="clear2" onclick="clearMonth('user2')"></button>
@@ -301,7 +317,9 @@ let settings = {
   name1: "User1",
   name2: "User2",
   color1: "#ff6666",
-  color2: "#6666ff"
+  color2: "#6666ff",
+  lock1: false,
+  lock2: false
 };
 
 /* =========================
@@ -388,7 +406,15 @@ function createSelect(date,type){
   const sel = document.createElement("select");
   sel.dataset.date = formatDateKey(date);
   sel.dataset.type = type;
+
   sel.style.color = type==="user1" ? settings.color1 : settings.color2;  
+
+  if(
+    (type === "user1" && settings.lock1) ||
+    (type === "user2" && settings.lock2)
+  ){
+    sel.disabled = true;
+  }
 
   options.forEach(o=>{
     const opt = document.createElement("option");
@@ -416,6 +442,7 @@ function applyColor(sel){
    データ反映
 ========================= */
 function applyData(){
+  if(isLocalEditing) return;
   document.querySelectorAll("select").forEach(sel=>{
     const d = sel.dataset.date;
     const t = sel.dataset.type;
@@ -616,6 +643,9 @@ wrapper.addEventListener("touchend",(e)=>{
 
 function fillWork(type){
 
+  if(type==="user1" && settings.lock1) return;
+  if(type==="user2" && settings.lock2) return;
+
   const y = current.getFullYear();
   const m = current.getMonth();
 
@@ -637,9 +667,13 @@ function fillWork(type){
   });
 }
 
+let isLocalEditing = false;
+
 function clearMonth(type){
 
   if(!confirm("削除しますか？")) return;
+
+  isLocalEditing = true;
 
   const y = current.getFullYear();
   const m = String(current.getMonth() + 1).padStart(2, "0");
@@ -649,13 +683,54 @@ function clearMonth(type){
     const dateKey = sel.dataset.date;
 
     if (dateKey.startsWith(`${y}-${m}`)) {
+
+      if(
+        (type === "user1" && settings.lock1) ||
+        (type === "user2" && settings.lock2)
+      ){
+        return;
+      }
+
+      // ① 即UI反映
       sel.value = "";
-      sel.dispatchEvent(new Event("change"));
+      applyColor(sel);
+
+      // ② DB更新
+      saveData(new Date(dateKey), type, "");
     }
   });
 
-  // 即時反映（重要）
-  applyData();
+  // 少し遅れて解除（onSnapshot対策）
+  setTimeout(() => {
+    isLocalEditing = false;
+  }, 300);
+}
+
+function toggleLock(user){
+  if(user === "user1"){
+    settings.lock1 = !settings.lock1;
+  } else {
+    settings.lock2 = !settings.lock2;
+  }
+
+  localStorage.setItem("settings", JSON.stringify(settings));
+  updateLockUI();
+  applyLockToUI();
+}
+
+function updateLockUI(){
+  lock1Btn.textContent = settings.lock1 ? "🔒" : "🔓";
+  lock2Btn.textContent = settings.lock2 ? "🔒" : "🔓";
+}
+
+function applyLockToUI(){
+  document.querySelectorAll('select[data-type="user1"]').forEach(sel=>{
+    sel.disabled = settings.lock1;
+  });
+
+  document.querySelectorAll('select[data-type="user2"]').forEach(sel=>{
+    sel.disabled = settings.lock2;
+  });
 }
 
 function goToCurrentMonth(){ current=new Date(); generateCalendar(); }
@@ -665,6 +740,7 @@ function goToCurrentMonth(){ current=new Date(); generateCalendar(); }
 ========================= */
 loadSettings();
 applySettingsUI();
+updateLockUI();
 generateCalendar();
 subscribe();
 
