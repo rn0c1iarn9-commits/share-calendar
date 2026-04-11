@@ -170,6 +170,14 @@ select {
   z-index: 2000;
 }
 
+#settings input[type="text"] {
+  width: 50%;
+  max-width: 160px; /* ←大きくなりすぎ防止 */
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
 /* 便利ボタンエリア */
 #fill-buttons {
   text-align: center;
@@ -250,19 +258,15 @@ select {
 <div id="settings">
   <h3>設定</h3>
   <div>
-    User1 名前：<input id="name1">
+    User1：<input id="name1">
+    <input type="color" id="color1">
     <button id="clear1" onclick="clearMonth('user1')"></button>
-  </div>
-  <div>
-    User1 色：<input type="color" id="color1">
   </div>
   <br>
   <div>
-    User2 名前：<input id="name2">
+    User2：<input id="name2">
+    <input type="color" id="color2">
     <button id="clear2" onclick="clearMonth('user2')"></button>
-  </div>
-  <div>
-    User2 色：<input type="color" id="color2">
   </div>
   <br>
   <button onclick="saveSettings()">保存</button>
