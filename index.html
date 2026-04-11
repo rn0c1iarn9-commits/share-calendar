@@ -307,6 +307,27 @@ select:disabled {
   background: linear-gradient(transparent, #fff);
 }
 
+
+.wheel {
+  height: 120px;
+  overflow-y: scroll;
+  text-align: center;
+  scroll-snap-type: y mandatory;
+  border-radius: 10px;
+  background: #f5f5f5;
+}
+
+.wheel-item {
+  height: 40px;
+  line-height: 40px;
+  scroll-snap-align: center;
+  font-size: 18px;
+}
+
+.wheel-item.selected {
+  background: #dbe9ff;
+}
+
 @keyframes slideIn {
   to {
     transform: translateX(0);
@@ -317,7 +338,7 @@ select:disabled {
 @media (max-width: 600px) {
   #settings input#name1,
   #settings input#name2 {
-    width: 60px !important;
+    width: 100px !important;
   }
 }
 
@@ -370,8 +391,8 @@ select:disabled {
 
   <div class="picker-box">
     <div class="picker-row">
-      <select id="yearSelect"></select>
-      <select id="monthSelect"></select>
+      <div id="yearWheel" class="wheel"></div>
+      <div id="monthWheel" class="wheel"></div>
     </div>
 
     <button onclick="jumpToMonth()">移動</button>
@@ -871,14 +892,54 @@ function closePicker(){
   document.getElementById("monthPicker").style.display = "none";
 }
 
+function initWheel(){
+
+  const yearWheel = document.getElementById("yearWheel");
+  const monthWheel = document.getElementById("monthWheel");
+
+  yearWheel.innerHTML = "";
+  monthWheel.innerHTML = "";
+
+  const nowYear = new Date().getFullYear();
+
+  // 年
+  for(let y = nowYear - 5; y <= nowYear + 5; y++){
+    const div = document.createElement("div");
+    div.className = "wheel-item";
+    div.textContent = y + "年";
+    div.onclick = () => {
+      selectedYear = y;
+      highlight(yearWheel, div);
+    };
+    yearWheel.appendChild(div);
+  }
+
+  // 月
+  for(let m = 1; m <= 12; m++){
+    const div = document.createElement("div");
+    div.className = "wheel-item";
+    div.textContent = m + "月";
+    div.onclick = () => {
+      selectedMonth = m;
+      highlight(monthWheel, div);
+    };
+    monthWheel.appendChild(div);
+  }
+}
+
+let selectedYear = new Date().getFullYear();
+let selectedMonth = new Date().getMonth() + 1;
+
+function highlight(container, item){
+  container.querySelectorAll(".wheel-item")
+    .forEach(el => el.classList.remove("selected"));
+
+  item.classList.add("selected");
+}
+
 function jumpToMonth(){
-
-  const y = parseInt(document.getElementById("yearSelect").value);
-  const m = parseInt(document.getElementById("monthSelect").value) - 1;
-
-  current = new Date(y, m, 1);
+  current = new Date(selectedYear, selectedMonth - 1, 1);
   generateCalendar();
-
   closePicker();
 }
 
