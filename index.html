@@ -270,12 +270,16 @@ select:disabled {
 }
 
 .wheel {
-  width: 100px;
   height: 150px;
   overflow-y: scroll;
   scroll-snap-type: y mandatory;
   background: #f5f5f5;
   border-radius: 10px;
+
+  /* 👇重要：中央基準にするための余白 */
+  padding-top: 55px;
+  padding-bottom: 55px;
+  box-sizing: border-box;
 }
 
 .wheel-item {
@@ -293,6 +297,19 @@ select:disabled {
 }
 
 .picker-box::before {
+  content: "";
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 50%;
+  height: 40px;
+  transform: translateY(-50%);
+  border-top: 1px solid #ccc;
+  border-bottom: 1px solid #ccc;
+  pointer-events: none;
+}
+
+.picker-box::after {
   content: "";
   position: absolute;
   left: 20px;
@@ -872,11 +889,11 @@ function initWheel(){
   monthWheel.scrollTop = (new Date().getMonth()) * 40;
 }
 
-function getCenterValue(wheel, min, offset = 40){
+function getCenterValue(wheel, start, itemHeight = 40, padding = 55){
 
-  const index = Math.round(wheel.scrollTop / offset);
+  const index = Math.round((wheel.scrollTop - padding) / itemHeight);
 
-  return min + index;
+  return start + index;
 }
 
 function jumpToCenter(){
