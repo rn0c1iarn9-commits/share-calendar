@@ -265,21 +265,28 @@ select:disabled {
 
 .wheel-container {
   display: flex;
-  gap: 10px;
+  gap: 40px;
   justify-content: center;
 }
 
 .wheel {
   height: 150px;
   overflow-y: scroll;
+  overflow-x: hidden;
+
   scroll-snap-type: y mandatory;
-  background: #f5f5f5;
+  background: #fff;
   border-radius: 10px;
 
-  /* 👇重要：中央基準にするための余白 */
-  padding-top: 55px;
-  padding-bottom: 55px;
+  padding-top: 60px;
+  padding-bottom: 60px;
   box-sizing: border-box;
+
+  scrollbar-width: none; /* Firefox */
+}
+
+.wheel::-webkit-scrollbar {
+  display: none;
 }
 
 .wheel-item {
@@ -287,39 +294,13 @@ select:disabled {
   line-height: 40px;
   text-align: center;
   scroll-snap-align: center;
+  opacity: 0.4;
+  transition: 0.2s;
 }
 
-/* 中央ハイライト */
-.wheel::before,
-.wheel::after {
-  content: "";
-  position: sticky;
-}
-
-.picker-box::before {
-  content: "";
-  position: absolute;
-  left: 20px;
-  right: 20px;
-  top: 50%;
-  height: 40px;
-  transform: translateY(-50%);
-  border-top: 1px solid #ccc;
-  border-bottom: 1px solid #ccc;
-  pointer-events: none;
-}
-
-.picker-box::after {
-  content: "";
-  position: absolute;
-  left: 20px;
-  right: 20px;
-  top: 50%;
-  height: 40px;
-  transform: translateY(-50%);
-  border-top: 1px solid #ccc;
-  border-bottom: 1px solid #ccc;
-  pointer-events: none;
+.wheel-item.center {
+  opacity: 1;
+  transform: scale(1.1);
 }
 
 @keyframes slideIn {
@@ -412,17 +393,33 @@ const db = firebase.firestore();
 const calendarEl = document.getElementById("calendar");
 const titleEl = document.getElementById("title");
 
-titleEl.addEventListener("touchstart", () => {
+const ITEM_HEIGHT = 40;
+const PADDING = 60;
+
+let pressTimer = null;
+
+function startPress(){
   pressTimer = setTimeout(openPicker, 600);
-});
-titleEl.addEventListener("touchend", () => clearTimeout(pressTimer));
-titleEl.addEventListener("touchmove", () => clearTimeout(pressTimer));
+}
+
+function cancelPress(){
+  clearTimeout(pressTimer);
+}
+
+// スマホ
+titleEl.addEventListener("touchstart", startPress);
+titleEl.addEventListener("touchend", cancelPress);
+titleEl.addEventListener("touchmove", cancelPress);
+
+// PC（追加）
+titleEl.addEventListener("mousedown", startPress);
+titleEl.addEventListener("mouseup", cancelPress);
+titleEl.addEventListener("mouseleave", cancelPress);
 
 let current = new Date();
 let latestData = {};
 let holidaysOfYear = {};
 let unsubscribe = null;
-let pressTimer = null;
 
 const options = ["", "出社", "在宅", "休日"];
 const week = ["日","月","火","水","木","金","土"];
@@ -885,13 +882,18 @@ function initWheel(){
   }
 
   // 初期位置セット
-  yearWheel.scrollTop = 5 * 40;
-  monthWheel.scrollTop = (new Date().getMonth()) * 40;
+  yearWheel.scrollTop = 5 * ITEM_HEIGHT;
+  monthWheel.scrollTop = new Date().getMonth() * ITEM_HEIGHT;
+
+  yearWheel.addEventListener("scroll", () => updateHighlight(yearWheel));
+  monthWheel.addEventListener("scroll", () => updateHighlight(monthWheel));
 }
 
-function getCenterValue(wheel, start, itemHeight = 40, padding = 55){
+function getCenterValue(wheel, start){
 
-  const index = Math.round((wheel.scrollTop - padding) / itemHeight);
+  const index = Math.round(
+    (wheel.scrollTop - PADDING + ITEM_HEIGHT / 2) / ITEM_HEIGHT
+  );
 
   return start + index;
 }
@@ -929,6 +931,19 @@ function jumpToMonth(){
   current = new Date(selectedYear, selectedMonth - 1, 1);
   generateCalendar();
   closePicker();
+}
+
+function updateHighlight(wheel){
+
+  const items = wheel.querySelectorAll(".wheel-item");
+
+  const centerIndex = Math.round(
+    (wheel.scrollTop - PADDING + ITEM_HEIGHT / 2) / ITEM_HEIGHT
+  );
+
+  items.forEach((el, i) => {
+    el.classList.toggle("center", i === centerIndex);
+  });
 }
 
 /* =========================
