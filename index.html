@@ -553,20 +553,19 @@ let dragging = false;
 
 wrapper.addEventListener("touchstart",(e)=>{
   startX = e.touches[0].clientX;
-  startY = e.touches[0].clientY;
   currentX = startX;
   dragging = true;
+
+  calendarEl.style.transition = "none";
 });
 
 wrapper.addEventListener("touchmove",(e)=>{
   if(!dragging) return;
 
-  const dx = e.touches[0].clientX - startX;
-  const dy = e.touches[0].clientY - startY;
+  currentX = e.touches[0].clientX;
+  const diff = currentX - startX;
 
-  if(Math.abs(dx) > Math.abs(dy)){
-    calendarEl.style.transform = `translateX(${dx}px)`;
-  }
+  calendarEl.style.transform = `translateX(${diff}px)`;
 });
 
 wrapper.addEventListener("touchend",(e)=>{
@@ -578,13 +577,35 @@ wrapper.addEventListener("touchend",(e)=>{
   }
 
   const diff = currentX - startX;
+  const width = wrapper.offsetWidth;
 
-  if(diff > 80){
-    changeMonth(-1); // ← 戻る
-  } else if(diff < -80){
-    changeMonth(1);  // → 進む
+  // 判定ライン（25%）
+  const threshold = width * 0.25;
+
+  calendarEl.style.transition = "transform 0.25s ease";
+
+  if(diff > threshold){
+    // ← 前の月
+    calendarEl.style.transform = `translateX(${width}px)`;
+
+    setTimeout(()=>{
+      changeMonth(-1);
+      calendarEl.style.transition = "none";
+      calendarEl.style.transform = "translateX(0)";
+    },200);
+
+  } else if(diff < -threshold){
+    // → 次の月
+    calendarEl.style.transform = `translateX(-${width}px)`;
+
+    setTimeout(()=>{
+      changeMonth(1);
+      calendarEl.style.transition = "none";
+      calendarEl.style.transform = "translateX(0)";
+    },200);
+
   } else {
-    calendarEl.style.transition = "transform 0.2s ease";
+    // スナップバック（戻る）
     calendarEl.style.transform = "translateX(0)";
   }
 });
