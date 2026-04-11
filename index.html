@@ -263,8 +263,15 @@ select:disabled {
   text-align: center;
 }
 
+.wheel-container {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
 .wheel {
-  height: 120px;
+  width: 100px;
+  height: 150px;
   overflow-y: scroll;
   scroll-snap-type: y mandatory;
   background: #f5f5f5;
@@ -274,7 +281,28 @@ select:disabled {
 .wheel-item {
   height: 40px;
   line-height: 40px;
+  text-align: center;
   scroll-snap-align: center;
+}
+
+/* 中央ハイライト */
+.wheel::before,
+.wheel::after {
+  content: "";
+  position: sticky;
+}
+
+.picker-box::before {
+  content: "";
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 50%;
+  height: 40px;
+  transform: translateY(-50%);
+  border-top: 1px solid #ccc;
+  border-bottom: 1px solid #ccc;
+  pointer-events: none;
 }
 
 @keyframes slideIn {
@@ -339,12 +367,15 @@ select:disabled {
   <div class="picker-bg" onclick="closePicker()"></div>
 
   <div class="picker-box">
-    <div class="picker-row">
+
+    <div class="wheel-container">
+
       <div id="yearWheel" class="wheel"></div>
       <div id="monthWheel" class="wheel"></div>
+
     </div>
 
-    <button onclick="jumpToMonth()">移動</button>
+    <button onclick="jumpToCenter()">移動</button>
   </div>
 </div>
 
@@ -801,37 +832,6 @@ function applyLockToUI(){
 
 function goToCurrentMonth(){ current=new Date(); generateCalendar(); }
 
-function initPicker(){
-
-  const yearSelect = document.getElementById("yearSelect");
-  const monthSelect = document.getElementById("monthSelect");
-
-  yearSelect.innerHTML = "";
-  monthSelect.innerHTML = "";
-
-  const nowYear = new Date().getFullYear();
-
-  // 年（±5年）
-  for(let y = nowYear - 5; y <= nowYear + 5; y++){
-    const opt = document.createElement("option");
-    opt.value = y;
-    opt.textContent = y + "年";
-    yearSelect.appendChild(opt);
-  }
-
-  // 月
-  for(let m = 1; m <= 12; m++){
-    const opt = document.createElement("option");
-    opt.value = m;
-    opt.textContent = m + "月";
-    monthSelect.appendChild(opt);
-  }
-
-  // 現在値セット
-  yearSelect.value = current.getFullYear();
-  monthSelect.value = current.getMonth() + 1;
-}
-
 function openPicker(){
   document.getElementById("monthPicker").style.display = "block";
   initWheel();
@@ -856,10 +856,6 @@ function initWheel(){
     const div = document.createElement("div");
     div.className = "wheel-item";
     div.textContent = y + "年";
-    div.onclick = () => {
-      selectedYear = y;
-      highlight(yearWheel, div);
-    };
     yearWheel.appendChild(div);
   }
 
@@ -868,22 +864,48 @@ function initWheel(){
     const div = document.createElement("div");
     div.className = "wheel-item";
     div.textContent = m + "月";
-    div.onclick = () => {
-      selectedMonth = m;
-      highlight(monthWheel, div);
-    };
     monthWheel.appendChild(div);
   }
+
+  // 初期位置セット
+  yearWheel.scrollTop = 5 * 40;
+  monthWheel.scrollTop = (new Date().getMonth()) * 40;
 }
 
-let selectedYear = new Date().getFullYear();
-let selectedMonth = new Date().getMonth() + 1;
+function getCenterValue(wheel, min, offset = 40){
 
-function highlight(container, item){
-  container.querySelectorAll(".wheel-item")
-    .forEach(el => el.classList.remove("selected"));
+  const index = Math.round(wheel.scrollTop / offset);
 
-  item.classList.add("selected");
+  return min + index;
+}
+
+function jumpToCenter(){
+
+  const yearWheel = document.getElementById("yearWheel");
+  const monthWheel = document.getElementById("monthWheel");
+
+  const yearStart = new Date().getFullYear() - 5;
+
+  const y = getCenterValue(yearWheel, yearStart);
+  const m = getCenterValue(monthWheel, 1) - 1;
+
+  current = new Date(y, m, 1);
+  generateCalendar();
+
+  closePicker();
+}
+
+function snap(wheel){
+
+  clearTimeout(wheel._t);
+
+  wheel._t = setTimeout(() => {
+    const index = Math.round(wheel.scrollTop / 40);
+    wheel.scrollTo({
+      top: index * 40,
+      behavior: "smooth"
+    });
+  }, 80);
 }
 
 function jumpToMonth(){
