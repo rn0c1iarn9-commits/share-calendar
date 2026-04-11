@@ -20,16 +20,25 @@ h2 {
 }
 
 .nav-buttons {
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 10px;
   padding: 12px;
-  position: sticky;
-  top: 0;
-  background: rgba(245,247,251,0.8);
-  backdrop-filter: blur(10px);
-  z-index: 10;
+}
+
+/* 設定ボタンを左端固定 */
+.settings-btn {
+  position: absolute;
+  left: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+
+/* タイトルは中央固定 */
+#title {
+  margin: 0 10px;
 }
 
 button {
@@ -161,13 +170,6 @@ select {
   z-index: 2000;
 }
 
-/* 左上設定ボタン */
-.top-left button {
-  border-radius: 50%;
-  width: 36px;
-  height: 36px;
-}
-
 /* 便利ボタンエリア */
 #fill-buttons {
   text-align: center;
@@ -225,12 +227,10 @@ select {
 </head>
 <body>
 
-<div class="top-left">
-  <button onclick="openSettings()">⚙️</button>
-</div>
-
 <!-- 月タイトルと矢印 -->
 <div class="nav-buttons">
+  <button class="settings-btn" onclick="openSettings()">⚙️</button>
+
   <button onclick="changeMonth(-1)">←</button>
   <h2 id="title" onclick="goToCurrentMonth()"></h2>
   <button onclick="changeMonth(1)">→</button>
@@ -241,8 +241,6 @@ select {
   <button id="fill1" onclick="fillWork('user1')"></button>
   <button id="fill2" onclick="fillWork('user2')"></button>
 </div>
-
-<div class="calendar" id="calendar"></div>
 
 <div class="calendar-wrapper">
   <div class="calendar" id="calendar"></div>
@@ -546,24 +544,31 @@ function changeMonth(n){
 /* =========================
    スワイプ（指追従）
 ========================= */
+const wrapper = document.querySelector(".calendar-wrapper");
+
 let startX = 0;
+let startY = 0;
 let currentX = 0;
 let dragging = false;
 
-document.addEventListener("touchstart",(e)=>{
+wrapper.addEventListener("touchstart",(e)=>{
   startX = e.touches[0].clientX;
+  startY = e.touches[0].clientY;
   dragging = true;
-  calendarEl.style.transition = "none";
 });
 
-document.addEventListener("touchmove",(e)=>{
+wrapper.addEventListener("touchmove",(e)=>{
   if(!dragging) return;
-  currentX = e.touches[0].clientX;
-  const diff = currentX - startX;
-  calendarEl.style.transform = `translateX(${diff}px)`;
+
+  const dx = e.touches[0].clientX - startX;
+  const dy = e.touches[0].clientY - startY;
+
+  if(Math.abs(dx) > Math.abs(dy)){
+    calendarEl.style.transform = `translateX(${dx}px)`;
+  }
 });
 
-document.addEventListener("touchend",()=>{
+wrapper.addEventListener("touchend",()=>{
   if(!dragging) return;
   dragging = false;
 
