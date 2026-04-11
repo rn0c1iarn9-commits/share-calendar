@@ -554,6 +554,7 @@ let dragging = false;
 wrapper.addEventListener("touchstart",(e)=>{
   startX = e.touches[0].clientX;
   startY = e.touches[0].clientY;
+  currentX = startX;
   dragging = true;
 });
 
@@ -568,16 +569,20 @@ wrapper.addEventListener("touchmove",(e)=>{
   }
 });
 
-wrapper.addEventListener("touchend",()=>{
+wrapper.addEventListener("touchend",(e)=>{
   if(!dragging) return;
   dragging = false;
+
+  if(e.changedTouches && e.changedTouches.length){
+    currentX = e.changedTouches[0].clientX;
+  }
 
   const diff = currentX - startX;
 
   if(diff > 80){
-    changeMonth(-1);
+    changeMonth(-1); // ← 戻る
   } else if(diff < -80){
-    changeMonth(1);
+    changeMonth(1);  // → 進む
   } else {
     calendarEl.style.transition = "transform 0.2s ease";
     calendarEl.style.transform = "translateX(0)";
