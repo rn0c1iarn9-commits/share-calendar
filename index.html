@@ -271,8 +271,40 @@ select:disabled {
 }
 
 .picker-row select {
-  font-size: 16px;
-  padding: 6px;
+  height: 120px;        /* ←スクロール領域 */
+  overflow-y: scroll;
+  font-size: 18px;
+  text-align: center;
+
+  /* iOS風 */
+  appearance: none;
+  background: #f7f7f7;
+  border-radius: 10px;
+}
+
+/* スクロールを“ホイールっぽく” */
+.picker-row {
+  position: relative;
+}
+
+.picker-row::before,
+.picker-row::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 40px;
+  pointer-events: none;
+}
+
+.picker-row::before {
+  top: 0;
+  background: linear-gradient(#fff, transparent);
+}
+
+.picker-row::after {
+  bottom: 0;
+  background: linear-gradient(transparent, #fff);
 }
 
 @keyframes slideIn {
@@ -283,11 +315,12 @@ select:disabled {
 }
 
 @media (max-width: 600px) {
-  #settings input[type="text"] {
-    width: 45%;
-    max-width: 60px;
+  #settings input#name1,
+  #settings input#name2 {
+    width: 60px !important;
   }
 }
+
 </style>
 </head>
 <body>
@@ -336,8 +369,6 @@ select:disabled {
   <div class="picker-bg" onclick="closePicker()"></div>
 
   <div class="picker-box">
-    <h3>年月ジャンプ</h3>
-
     <div class="picker-row">
       <select id="yearSelect"></select>
       <select id="monthSelect"></select>
