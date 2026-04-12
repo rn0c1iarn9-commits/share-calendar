@@ -19,6 +19,15 @@ h2 {
   font-size: 18px;
 }
 
+.fixed-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+
+  background: #f5f7fb; /* 背景ないと透ける */
+  padding-bottom: 6px; /* 少し余白あると見やすい */
+}
+
 .nav-buttons {
   position: relative;
   display: flex;
@@ -321,23 +330,29 @@ select:disabled {
 </head>
 <body>
 
-<!-- 月タイトルと矢印 -->
-<div class="nav-buttons">
-  <button class="settings-btn" onclick="openSettings()">⚙️</button>
+<!-- 固定エリア -->
+<!-- ★追加：固定エリア -->
+<div class="fixed-header">
+  <!-- 月タイトルと矢印 -->
+  <div class="nav-buttons">
+    <button class="settings-btn" onclick="openSettings()">⚙️</button>
 
-  <button onclick="changeMonth(-1)">←</button>
-  <h2 id="title" onclick="goToCurrentMonth()"></h2>
-  <button onclick="changeMonth(1)">→</button>
+    <button onclick="changeMonth(-1)">←</button>
+    <h2 id="title" onclick="goToCurrentMonth()"></h2>
+    <button onclick="changeMonth(1)">→</button>
+  </div>
+
+  <!-- ボタン -->
+  <div id="fill-buttons">
+    <button id="fill1" onclick="fillWork('user1')"></button>
+    <button id="fill2" onclick="fillWork('user2')"></button>
+  </div>
+
 </div>
 
-<!-- 「空欄→出社」ボタンは設定外、設定ボタン下 -->
-<div id="fill-buttons">
-  <button id="fill1" onclick="fillWork('user1')"></button>
-  <button id="fill2" onclick="fillWork('user2')"></button>
-</div>
-
-<div class="calendar-wrapper">
-  <div class="calendar" id="calendar"></div>
+  <div class="calendar-wrapper">
+    <div class="calendar" id="calendar"></div>
+  </div>
 </div>
 
 <!-- 設定 -->
@@ -782,6 +797,13 @@ let isLocalEditing = false;
 
 function clearMonth(type){
 
+    if(
+      (type === "user1" && settings.lock1) ||
+      (type === "user2" && settings.lock2)
+    ){
+      return;
+    }
+
   if(!confirm("削除しますか？")) return;
 
   isLocalEditing = true;
@@ -794,13 +816,6 @@ function clearMonth(type){
     const dateKey = sel.dataset.date;
 
     if (dateKey.startsWith(`${y}-${m}`)) {
-
-      if(
-        (type === "user1" && settings.lock1) ||
-        (type === "user2" && settings.lock2)
-      ){
-        return;
-      }
 
       // ① 即UI反映
       sel.value = "";
