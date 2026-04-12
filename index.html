@@ -599,7 +599,7 @@ async function generateCalendar(){
   const y = current.getFullYear();
   const m = current.getMonth();
 
-  loadHolidayData(y);
+  await loadHolidayData(y);
 
   calendarEl.innerHTML = "";
   titleEl.textContent = `${y}年 ${m+1}月`;
@@ -696,7 +696,7 @@ function changeMonth(n){
   if(isAnimating) return;
   isAnimating = true;
 
-  calendarEl.style.transition = "transform 0.15s ease";
+  calendarEl.style.transition = "transform 0.05s ease";
   calendarEl.style.transform = `translateX(${n > 0 ? -100 : 100}%)`;
 
   setTimeout(async ()=>{
@@ -749,9 +749,9 @@ wrapper.addEventListener("touchend",(e)=>{
   const width = wrapper.offsetWidth;
 
   // 判定ライン（25%）
-  const threshold = width * 0.25;
+  const threshold = width * 0.15;
 
-  calendarEl.style.transition = "transform 0.15s ease";
+  calendarEl.style.transition = "transform 0.05s ease";
 
   if(diff > threshold){
     // ← 前の月
