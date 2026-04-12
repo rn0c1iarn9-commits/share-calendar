@@ -1055,9 +1055,7 @@ function initWheel(){
 
 function getCenterValue(wheel, start){
 
-  const index = Math.round(
-    (wheel.scrollTop - PADDING + ITEM_HEIGHT / 2) / ITEM_HEIGHT
-  );
+  const index = Math.round(wheel.scrollTop / ITEM_HEIGHT);
 
   return start + index;
 }
@@ -1101,9 +1099,7 @@ function updateHighlight(wheel){
 
   const items = wheel.querySelectorAll(".wheel-item");
 
-  const centerIndex = Math.round(
-    (wheel.scrollTop - PADDING + ITEM_HEIGHT / 2) / ITEM_HEIGHT
-  );
+  const centerIndex = Math.round(wheel.scrollTop / ITEM_HEIGHT);
 
   items.forEach((el, i) => {
     el.classList.toggle("center", i === centerIndex);
