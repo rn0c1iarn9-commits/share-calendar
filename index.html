@@ -451,10 +451,19 @@ let settings = {
 /* =========================
    祝日
 ========================= */
+const holidayCache = {};
+
 async function loadHolidayData(year){
+  if(holidayCache[year]){
+    holidaysOfYear = holidayCache[year];
+    return;
+  }
+
   try {
     const res = await fetch(`https://holidays-jp.github.io/api/v1/${year}/date.json`);
-    holidaysOfYear = await res.json();
+    const data = await res.json();
+    holidayCache[year] = data;
+    holidaysOfYear = data;
   } catch {
     holidaysOfYear = {};
   }
@@ -569,13 +578,16 @@ function applyColor(sel){
 ========================= */
 function applyData(){
   if(isLocalEditing) return;
-  document.querySelectorAll("select").forEach(sel=>{
-    const d = sel.dataset.date;
-    const t = sel.dataset.type;
-    if (latestData[d]?.[t]) {
-      sel.value = latestData[d][t];
-      applyColor(sel);
-    }
+
+  requestAnimationFrame(() => {
+    document.querySelectorAll("select").forEach(sel=>{
+      const d = sel.dataset.date;
+      const t = sel.dataset.type;
+      if (latestData[d]?.[t]) {
+        sel.value = latestData[d][t];
+        applyColor(sel);
+      }
+    });
   });
 }
 
@@ -587,7 +599,7 @@ async function generateCalendar(){
   const y = current.getFullYear();
   const m = current.getMonth();
 
-  await loadHolidayData(y);
+  loadHolidayData(y);
 
   calendarEl.innerHTML = "";
   titleEl.textContent = `${y}年 ${m+1}月`;
@@ -684,7 +696,7 @@ function changeMonth(n){
   if(isAnimating) return;
   isAnimating = true;
 
-  calendarEl.style.transition = "transform 0.25s ease";
+  calendarEl.style.transition = "transform 0.15s ease";
   calendarEl.style.transform = `translateX(${n > 0 ? -100 : 100}%)`;
 
   setTimeout(async ()=>{
@@ -739,7 +751,7 @@ wrapper.addEventListener("touchend",(e)=>{
   // 判定ライン（25%）
   const threshold = width * 0.25;
 
-  calendarEl.style.transition = "transform 0.25s ease";
+  calendarEl.style.transition = "transform 0.15s ease";
 
   if(diff > threshold){
     // ← 前の月
