@@ -50,6 +50,19 @@ h2 {
   margin: 0 10px;
 }
 
+.bulk-select {
+  position: absolute;
+  right: 12px;
+  width: 80px;
+  border-radius: 10px;
+  height: 32px;
+  padding: 0 4px;
+  font-size: 12px;
+
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
 button {
   border: none;
   border-radius: 10px;
@@ -340,7 +353,15 @@ select:disabled {
     <button onclick="changeMonth(-1)">←</button>
     <h2 id="title" onclick="goToCurrentMonth()"></h2>
     <button onclick="changeMonth(1)">→</button>
+
+    <select id="bulkSelect" class="bulk-select">
+      <option value="">通常</option>
+      <option value="出社">出社</option>
+      <option value="在宅">在宅</option>
+      <option value="休日">休日</option>
+    </select>
   </div>
+</div>
 
   <!-- ボタン -->
   <div id="fill-buttons">
@@ -414,7 +435,7 @@ const PADDING = 60;
 let pressTimer = null;
 
 function startPress(){
-  pressTimer = setTimeout(openPicker, 600);
+  pressTimer = setTimeout(openPicker, 300);
 }
 
 function cancelPress(){
@@ -447,6 +468,20 @@ let settings = {
   lock1: false,
   lock2: false
 };
+
+let bulkMode = "";
+
+const bulkSelect = document.getElementById("bulkSelect");
+
+bulkSelect.addEventListener("change", () => {
+  bulkMode = bulkSelect.value;
+
+  bulkSelect.classList.remove("work","home","dayoff");
+
+  if(bulkMode === "出社") bulkSelect.classList.add("work");
+  if(bulkMode === "在宅") bulkSelect.classList.add("home");
+  if(bulkMode === "休日") bulkSelect.classList.add("dayoff");
+});
 
 /* =========================
    祝日
@@ -534,6 +569,17 @@ function saveData(date,type,value){
     .set({[type]:value},{merge:true});
 }
 
+function blockSelectOpen(sel){
+  sel.addEventListener("mousedown", (e) => {
+    if(bulkMode) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+}
+
+let isBulkApplying = false;
+
 /* =========================
    セレクト生成
 ========================= */
@@ -542,6 +588,8 @@ function createSelect(date,type){
   sel.dataset.date = formatDateKey(date);
   sel.dataset.type = type;
 
+  blockSelect(sel);
+  
   sel.style.color = type==="user1" ? settings.color1 : settings.color2;  
 
   if(
@@ -551,6 +599,20 @@ function createSelect(date,type){
     sel.disabled = true;
   }
 
+  sel.addEventListener("click", (e) => {
+
+    if(bulkMode){
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+
+  sel.addEventListener("mousedown", (e) => {
+    if(bulkMode){
+      e.preventDefault();
+    }
+  });
+
   options.forEach(o=>{
     const opt = document.createElement("option");
     opt.value = o;
@@ -558,8 +620,12 @@ function createSelect(date,type){
     sel.appendChild(opt);
   });
 
-  sel.onchange = () => {
-    saveData(date,type,sel.value);
+  sel.onchange = (e) => {
+
+    if(isBulkApplying) return;
+    if(!sel.value) return;
+
+    saveData(date, type, sel.value);
     applyColor(sel);
   };
 
@@ -567,10 +633,11 @@ function createSelect(date,type){
 }
 
 function applyColor(sel){
-  sel.className = "";
+  sel.classList.remove("work","home","dayoff");
+
   if (sel.value === "出社") sel.classList.add("work");
-  if (sel.value === "在宅") sel.classList.add("home");
-  if (sel.value === "休日") sel.classList.add("dayoff");
+  else if (sel.value === "在宅") sel.classList.add("home");
+  else if (sel.value === "休日") sel.classList.add("dayoff");
 }
 
 /* =========================
@@ -638,6 +705,7 @@ async function generateCalendar(){
 
     const box = document.createElement("div");
     box.className = "day";
+
     if(obj.sub) box.classList.add("sub");
 
     if(formatDateKey(dateObj) === formatDateKey(new Date()))
@@ -663,10 +731,79 @@ async function generateCalendar(){
     s2.appendChild(createSelect(dateObj,"user2"));
 
     box.append(date,s1,s2);
+
+
+
     calendarEl.appendChild(box);
   });
 
   applyData();
+}
+
+function createSelect(date,type){
+  const sel = document.createElement("select");
+
+  sel.dataset.date = formatDateKey(date);
+  sel.dataset.type = type;
+
+  sel.style.color = type==="user1" ? settings.color1 : settings.color2;
+
+  if(
+    (type === "user1" && settings.lock1) ||
+    (type === "user2" && settings.lock2)
+  ){
+    sel.disabled = true;
+  }
+
+  options.forEach(o=>{
+    const opt = document.createElement("option");
+    opt.value = o;
+    opt.textContent = o;
+    sel.appendChild(opt);
+  });
+
+  // ===== 通常モード =====
+  sel.onchange = () => {
+    if(isBulkApplying) return;
+
+    // ★空欄なら削除扱い
+    if(sel.value === ""){
+
+      db.collection("calendars")
+        .doc("family-calendar")
+        .collection("days")
+        .doc(formatDateKey(date))
+        .update({
+          [type]: firebase.firestore.FieldValue.delete()
+        });
+
+    } else {
+
+      saveData(date, type, sel.value);
+    }
+
+    applyColor(sel);
+  };
+
+  // ===== ★連続入力モード（ここが本体）=====
+  sel.addEventListener("click", (e) => {
+
+    if(!bulkMode) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // ドロップダウン完全禁止
+    sel.blur();
+
+    sel.value = bulkMode;
+
+    applyColor(sel);
+
+    saveData(date, type, bulkMode);
+  });
+
+  return sel;
 }
 
 /* =========================
