@@ -426,7 +426,18 @@ const firebaseConfig = {
   projectId: "schedulesharing-5a98b",
 };
 
-firebase.auth().signInAnonymously();
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+firebase.auth().signInAnonymously()
+  .then(() => {
+    loadSettings();
+    applySettingsUI();
+    updateLockUI();
+
+    generateCalendar();
+    subscribe();
+  });
 
 const calendarEl = document.getElementById("calendar");
 const titleEl = document.getElementById("title");
