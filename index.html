@@ -33,7 +33,7 @@ h2 {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 12px;
+  padding: 6px 6px;
 }
 
 /* 設定ボタンを左端固定 */
@@ -99,10 +99,10 @@ button:hover {
 .day {
   background: #fff;
   border-radius: 12px;
-  min-height: 95px;
+  min-height: 75px;
   display: flex;
   flex-direction: column;
-  padding: 4px;
+  padding: 2px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   position: relative;
   transition: 0.2s;
@@ -211,7 +211,8 @@ select {
 /* 便利ボタンエリア */
 #fill-buttons {
   text-align: center;
-  margin: 10px 0;
+  margin: 4px 0;
+  font-size: 11px;
 }
 
 #fill-buttons button {
@@ -229,6 +230,7 @@ select {
 .calendar {
   transition: transform 0.35s ease, opacity 0.35s ease;
   will-change: transform;
+  gap: 2px;
 }
 
 /* 退場 */
@@ -435,7 +437,7 @@ const PADDING = 60;
 let pressTimer = null;
 
 function startPress(){
-  pressTimer = setTimeout(openPicker, 300);
+  pressTimer = setTimeout(openPicker, 500);
 }
 
 function cancelPress(){
