@@ -431,13 +431,9 @@ const db = firebase.firestore();
 
 firebase.auth().signInAnonymously()
   .then(() => {
-    loadSettings();
-    applySettingsUI();
-    updateLockUI();
-
-    generateCalendar();
-    subscribe();
-  });
+    console.log("Auth OK");
+  })
+  .catch(console.error);
 
 const calendarEl = document.getElementById("calendar");
 const titleEl = document.getElementById("title");
@@ -600,7 +596,7 @@ function applyData(){
   if(isLocalEditing) return;
 
   requestAnimationFrame(() => {
-    document.querySelectorAll("select").forEach(sel=>{
+    //document.querySelectorAll("select").forEach(sel=>{
       const d = sel.dataset.date;
       const t = sel.dataset.type;
       if (latestData[d]?.[t]) {
@@ -608,7 +604,7 @@ function applyData(){
         applyColor(sel);
       }
     });
-  });
+  //});
 }
 
 /* =========================
@@ -616,6 +612,8 @@ function applyData(){
 ========================= */
 async function generateCalendar(){
 
+  calendarEl.innerHTML = "<div style='padding:10px'>Loading...</div>";
+  
   const y = current.getFullYear();
   const m = current.getMonth();
 
@@ -653,7 +651,9 @@ async function generateCalendar(){
     }
   }
 
-  days.forEach(obj=>{
+  const frag = document.createDocumentFragment();
+  
+  days.forEach(obj => {
     const dateObj = obj.date;
 
     const box = document.createElement("div");
@@ -683,12 +683,13 @@ async function generateCalendar(){
     s2.className = "slot";
     s2.appendChild(createSelect(dateObj,"user2"));
 
-    box.append(date,s1,s2);
+    box.append(date, s1, s2);
 
-
-
-    calendarEl.appendChild(box);
+    frag.appendChild(box);
   });
+
+  calendarEl.innerHTML = "";
+  calendarEl.appendChild(frag);
 
   applyData();
 }
@@ -829,12 +830,26 @@ function subscribe(){
   unsubscribe = db.collection("calendars")
     .doc("family-calendar")
     .collection("days")
-    .onSnapshot(snap=>{
-      latestData = {};
-      snap.forEach(doc=>{
-        latestData[doc.id] = doc.data();
+    .onSnapshot(snap => {
+
+      snap.docChanges().forEach(change => {
+        const id = change.doc.id;
+        const data = change.doc.data();
+
+        latestData[id] = data;
+
+        // ★差分だけ更新（爆速）
+        document
+          .querySelectorAll(`select[data-date="${id}"]`)
+          .forEach(sel => {
+            const t = sel.dataset.type;
+            if (data[t] !== undefined) {
+              sel.value = data[t];
+              applyColor(sel);
+            }
+          });
       });
-      applyData();
+
     });
 }
 
@@ -1127,7 +1142,10 @@ loadSettings();
 applySettingsUI();
 updateLockUI();
 generateCalendar();
-subscribe();
+
+setTimeout(() => {
+  subscribe();
+}, 0);
 
 /* =========================
    Service Worker
