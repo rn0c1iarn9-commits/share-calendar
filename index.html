@@ -596,15 +596,17 @@ function applyData(){
   if(isLocalEditing) return;
 
   requestAnimationFrame(() => {
-    //document.querySelectorAll("select").forEach(sel=>{
+    document.querySelectorAll("select").forEach(sel=>{
       const d = sel.dataset.date;
       const t = sel.dataset.type;
-      if (latestData[d]?.[t]) {
-        sel.value = latestData[d][t];
+
+      const val = latestData?.[d]?.[t];
+      if(val !== undefined){
+        sel.value = val;
         applyColor(sel);
       }
     });
-  //});
+  });
 }
 
 /* =========================
@@ -613,7 +615,7 @@ function applyData(){
 async function generateCalendar(){
 
   calendarEl.innerHTML = "<div style='padding:10px'>Loading...</div>";
-  
+
   const y = current.getFullYear();
   const m = current.getMonth();
 
@@ -868,6 +870,7 @@ function changeMonth(n){
   setTimeout(async ()=>{
     current.setMonth(current.getMonth()+n);
     await generateCalendar();
+    applyData();
 
     calendarEl.style.transition = "none";
     calendarEl.style.transform = "translateX(0)";
