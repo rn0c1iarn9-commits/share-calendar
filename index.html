@@ -208,6 +208,18 @@ select {
   padding: 0;
 }
 
+.undo-btn {
+  position: absolute;
+  left: 12px;
+  top: 54px; /* ⚙の下に配置 */
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  cursor: pointer;
+}
+
 /* 便利ボタンエリア */
 #fill-buttons {
   text-align: center;
@@ -351,6 +363,7 @@ select:disabled {
   <!-- 月タイトルと矢印 -->
   <div class="nav-buttons">
     <button class="settings-btn" onclick="openSettings()">⚙️</button>
+    <!--<button class="undo-btn" onclick="undoLastAction()">↩️</button> 一旦Undoボタンを無効化--> 
 
     <button onclick="changeMonth(-1)">←</button>
     <h2 id="title" onclick="goToCurrentMonth()"></h2>
@@ -443,6 +456,7 @@ const PADDING = 60;
 
 let pressTimer = null;
 let isLongPressClearing = false;
+let actionStack = [];
 
 function startPress(){
   pressTimer = setTimeout(openPicker, 500);
@@ -728,6 +742,18 @@ function createSelect(date, type){
   sel.onchange = () => {
     if(isBulkApplying) return;
 
+    const key = formatDateKey(date);
+    const prev = latestData?.[key]?.[type] || "";
+
+    // 履歴保存（入力・変更）
+    pushAction({
+      type: "set",
+      date: key,
+      field: type,
+      prev: prev,
+      next: sel.value
+    });
+    
     if(sel.value === ""){
       db.collection("calendars")
         .doc("family-calendar")
@@ -787,6 +813,13 @@ function addLongPressClear(sel, date, type){
       if(!sel.value) return;
 
       isLongPressClearing = true;
+
+      pushAction({
+        type: "delete",
+        date: formatDateKey(date),
+        field: type,
+        prev: sel.value
+      });
 
       // UI更新
       sel.value = "";
@@ -917,7 +950,7 @@ wrapper.addEventListener("touchend",(e)=>{
   const diff = currentX - startX;
   const width = wrapper.offsetWidth;
 
-  // 判定ライン（25%）
+  // 判定ライン（15%）
   const threshold = width * 0.15;
 
   calendarEl.style.transition = "transform 0.05s ease";
@@ -960,7 +993,7 @@ function fillWork(type){
 
     const selDate = new Date(sel.dataset.date);
 
-    // 👉 表示月だけに限定
+    // 表示月だけに限定
     if (
       selDate.getFullYear() === y &&
       selDate.getMonth() === m
@@ -1136,6 +1169,54 @@ function updateHighlight(wheel){
   items.forEach((el, i) => {
     el.classList.toggle("center", i === centerIndex);
   });
+}
+
+function undoLastAction(){
+
+  if(actionStack.length === 0){
+    alert("戻せる操作がありません");
+    return;
+  }
+
+  const action = actionStack.pop();
+
+  const ref = db.collection("calendars")
+    .doc("family-calendar")
+    .collection("days")
+    .doc(action.date);
+
+  // ===== ① 入力・変更 =====
+  if(action.type === "set"){
+
+    if(action.prev === "" || action.prev == null){
+      // 元が空 → 削除
+      ref.update({
+        [action.field]: firebase.firestore.FieldValue.delete()
+      });
+    } else {
+      // 元に戻す
+      ref.set({
+        [action.field]: action.prev
+      }, { merge: true });
+    }
+  }
+
+  // ===== ② 削除 =====
+  if(action.type === "delete"){
+    ref.set({
+      [action.field]: action.prev
+    }, { merge: true });
+  }
+  // UI反映はonSnapshotがやるので不要
+}
+
+function pushAction(action){
+  actionStack.push(action);
+
+  // 無限に溜まるの防止（任意）
+  if(actionStack.length > 50){
+    actionStack.shift();
+  }
 }
 
 /* =========================
