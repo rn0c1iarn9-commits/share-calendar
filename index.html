@@ -33,7 +33,7 @@ h2 {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 6px 6px;
+  padding: 6px 8px;
 }
 
 /* 設定ボタンを左端固定 */
@@ -99,7 +99,7 @@ button:hover {
 .day {
   background: #fff;
   border-radius: 12px;
-  min-height: 75px;
+  min-height: 85px;
   display: flex;
   flex-direction: column;
   padding: 2px;
@@ -435,6 +435,7 @@ const ITEM_HEIGHT = 40;
 const PADDING = 60;
 
 let pressTimer = null;
+let isLongPressClearing = false;
 
 function startPress(){
   pressTimer = setTimeout(openPicker, 500);
@@ -571,68 +572,7 @@ function saveData(date,type,value){
     .set({[type]:value},{merge:true});
 }
 
-function blockSelectOpen(sel){
-  sel.addEventListener("mousedown", (e) => {
-    if(bulkMode) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  });
-}
-
 let isBulkApplying = false;
-
-/* =========================
-   セレクト生成
-========================= */
-function createSelect(date,type){
-  const sel = document.createElement("select");
-  sel.dataset.date = formatDateKey(date);
-  sel.dataset.type = type;
-
-  blockSelect(sel);
-  
-  sel.style.color = type==="user1" ? settings.color1 : settings.color2;  
-
-  if(
-    (type === "user1" && settings.lock1) ||
-    (type === "user2" && settings.lock2)
-  ){
-    sel.disabled = true;
-  }
-
-  sel.addEventListener("click", (e) => {
-
-    if(bulkMode){
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  });
-
-  sel.addEventListener("mousedown", (e) => {
-    if(bulkMode){
-      e.preventDefault();
-    }
-  });
-
-  options.forEach(o=>{
-    const opt = document.createElement("option");
-    opt.value = o;
-    opt.textContent = o;
-    sel.appendChild(opt);
-  });
-
-  sel.onchange = (e) => {
-
-    if(isBulkApplying) return;
-    if(!sel.value) return;
-
-    saveData(date, type, sel.value);
-    applyColor(sel);
-  };
-
-  return sel;
-}
 
 function applyColor(sel){
   sel.classList.remove("work","home","dayoff");
@@ -742,14 +682,19 @@ async function generateCalendar(){
   applyData();
 }
 
-function createSelect(date,type){
+/* =========================
+   セレクト生成
+========================= */
+function createSelect(date, type){
   const sel = document.createElement("select");
 
   sel.dataset.date = formatDateKey(date);
   sel.dataset.type = type;
 
+  // 色
   sel.style.color = type==="user1" ? settings.color1 : settings.color2;
 
+  // ロック
   if(
     (type === "user1" && settings.lock1) ||
     (type === "user2" && settings.lock2)
@@ -757,6 +702,7 @@ function createSelect(date,type){
     sel.disabled = true;
   }
 
+  // option生成
   options.forEach(o=>{
     const opt = document.createElement("option");
     opt.value = o;
@@ -764,13 +710,75 @@ function createSelect(date,type){
     sel.appendChild(opt);
   });
 
-  // ===== 通常モード =====
+  // ===== 通常変更 =====
   sel.onchange = () => {
     if(isBulkApplying) return;
 
-    // ★空欄なら削除扱い
     if(sel.value === ""){
+      db.collection("calendars")
+        .doc("family-calendar")
+        .collection("days")
+        .doc(formatDateKey(date))
+        .update({
+          [type]: firebase.firestore.FieldValue.delete()
+        });
+    } else {
+      saveData(date, type, sel.value);
+    }
 
+    applyColor(sel);
+  };
+
+  sel.addEventListener("mousedown", (e) => {
+    if(bulkMode){
+      e.preventDefault();
+    }
+  });
+
+  // ===== 連続入力（bulk）=====
+  sel.addEventListener("click", (e) => {
+    if(isLongPressClearing) return;
+    if(!bulkMode) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    sel.blur();
+    sel.value = bulkMode;
+
+    applyColor(sel);
+    saveData(date, type, bulkMode);
+  });
+
+  // ===== 長押し削除 =====
+  addLongPressClear(sel, date, type);
+
+  return sel;
+}
+
+function addLongPressClear(sel, date, type){
+
+  const start = () => {
+    pressTimer = setTimeout(() => {
+
+      // ロック中は無効
+      if(
+        (type === "user1" && settings.lock1) ||
+        (type === "user2" && settings.lock2)
+      ){
+        return;
+      }
+
+      // 値が空なら何もしない
+      if(!sel.value) return;
+
+      isLongPressClearing = true;
+
+      // UI更新
+      sel.value = "";
+      applyColor(sel);
+
+      // Firestore削除
       db.collection("calendars")
         .doc("family-calendar")
         .collection("days")
@@ -779,33 +787,26 @@ function createSelect(date,type){
           [type]: firebase.firestore.FieldValue.delete()
         });
 
-    } else {
-
-      saveData(date, type, sel.value);
-    }
-
-    applyColor(sel);
+      setTimeout(() => {
+        isLongPressClearing = false;
+      }, 300);
+              
+    }, 500); // ←長押し時間
   };
 
-  // ===== ★連続入力モード（ここが本体）=====
-  sel.addEventListener("click", (e) => {
+  const cancel = () => {
+    clearTimeout(pressTimer);
+  };
 
-    if(!bulkMode) return;
+  // スマホ
+  sel.addEventListener("touchstart", start);
+  sel.addEventListener("touchend", cancel);
+  sel.addEventListener("touchmove", cancel);
 
-    e.preventDefault();
-    e.stopPropagation();
-
-    // ドロップダウン完全禁止
-    sel.blur();
-
-    sel.value = bulkMode;
-
-    applyColor(sel);
-
-    saveData(date, type, bulkMode);
-  });
-
-  return sel;
+  // PC
+  sel.addEventListener("mousedown", start);
+  sel.addEventListener("mouseup", cancel);
+  sel.addEventListener("mouseleave", cancel);
 }
 
 /* =========================
