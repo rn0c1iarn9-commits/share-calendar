@@ -157,6 +157,7 @@ select {
   appearance: none;
   outline: none;
   height: 90%;
+  touch-action: none;
 }
 
 /* 状態カラー（少し柔らかく） */
@@ -339,6 +340,41 @@ select:disabled {
   transform: scale(1.1);
 }
 
+#swipeGuide {
+  position: fixed;
+  z-index: 5000;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+}
+
+.guide-box {
+  position: relative;
+  width: 120px;
+  height: 120px;
+}
+
+.guide {
+  position: absolute;
+  font-size: 11px;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.guide.up { top: 0; left: 50%; transform: translateX(-50%); }
+.guide.down { bottom: 0; left: 50%; transform: translateX(-50%); }
+.guide.left { left: 0; top: 50%; transform: translateY(-50%); }
+.guide.right { right: 0; top: 50%; transform: translateY(-50%); }
+
+.guide.center {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #4f8cff;
+}
+
 @keyframes slideIn {
   to {
     transform: translateX(0);
@@ -356,6 +392,8 @@ select:disabled {
 </style>
 </head>
 <body>
+
+<div id="swipeGuide" style="display:none;"></div>
 
 <!-- 固定エリア -->
 <!-- ★追加：固定エリア -->
@@ -393,6 +431,16 @@ select:disabled {
 
 <!-- 設定 -->
 <div id="settings">
+
+  <div>
+    入力モード：
+    <select id="inputModeSelect">
+      <option value="normal">通常</option>
+      <option value="swipe">スワイプ</option>
+    </select>
+  </div>
+  <br>
+
   <h3>設定</h3>
   <div>
     <button id="lock1Btn" onclick="toggleLock('user1')">🔓</button>
@@ -490,7 +538,8 @@ let settings = {
   color1: "#ff6666",
   color2: "#6666ff",
   lock1: false,
-  lock2: false
+  lock2: false,
+  inputMode: "normal"
 };
 
 let bulkMode = "";
@@ -550,6 +599,7 @@ function applySettingsUI(){
 }
 
 function openSettings(){
+  inputModeSelect.value = settings.inputMode || "normal";
   document.getElementById("settings").style.display="block";
   name1.value = settings.name1;
   name2.value = settings.name2;
@@ -562,6 +612,7 @@ function closeSettings(){
 }
 
 function saveSettings(){
+  settings.inputMode = inputModeSelect.value;
   settings.name1 = name1.value;
   settings.name2 = name2.value;
   settings.color1 = color1.value;
@@ -770,8 +821,16 @@ function createSelect(date, type){
   };
 
   sel.addEventListener("mousedown", (e) => {
-    if(bulkMode){
+    if(settings.inputMode === "swipe"){
+      e.preventDefault(); // ←これで開かない
+    } else if(bulkMode){
       e.preventDefault();
+    }
+  });
+
+  sel.addEventListener("touchstart", (e) => {
+    if(settings.inputMode === "swipe"){
+      e.preventDefault(); // スマホ対応
     }
   });
 
@@ -791,7 +850,11 @@ function createSelect(date, type){
   });
 
   // ===== 長押し削除 =====
-  addLongPressClear(sel, date, type);
+  if(settings.inputMode !== "swipe"){
+    addLongPressClear(sel, date, type);
+  }
+
+  addSwipeInput(sel, date, type);
 
   return sel;
 }
@@ -854,6 +917,143 @@ function addLongPressClear(sel, date, type){
   sel.addEventListener("mousedown", start);
   sel.addEventListener("mouseup", cancel);
   sel.addEventListener("mouseleave", cancel);
+}
+
+function addSwipeInput(sel, date, type){
+
+  let startX = 0;
+  let startY = 0;
+  let isActive = false;
+  let timer = null;
+
+  const threshold = 30; // スワイプ判定距離
+
+  const start = (e) => {
+
+    if(settings.inputMode !== "swipe") return;
+
+    timer = setTimeout(() => {
+      isActive = true;
+
+      const touch = e.touches ? e.touches[0] : e;
+      startX = touch.clientX;
+      startY = touch.clientY;
+
+      showGuide(startX, startY);
+      sel.blur(); // select開かせない
+    }, 500); // ←0.5秒長押し
+  };
+
+  const move = (e) => {
+    if(!isActive) return;
+    e.preventDefault();
+
+    const touch = e.touches ? e.touches[0] : e;
+
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+
+    moveGuide(touch.clientX, touch.clientY);
+
+    let value = null;
+
+    if(Math.abs(dx) > Math.abs(dy)){
+      // 横
+      if(dx > threshold) value = "休日";   // →右
+      if(dx < -threshold) value = "在宅";  // ←左
+    }else{
+      // 縦
+      if(dy > threshold) value = "出社";   // ↓下
+      if(dy < -threshold) value = "";     // ↑上（削除）
+    }
+
+    if(value !== null){
+      applySwipeValue(sel, date, type, value);
+      hideGuide();
+      isActive = false;
+    }
+  };
+
+  const end = () => {
+    clearTimeout(timer);
+    hideGuide();
+    isActive = false;
+  };
+
+  // イベント登録
+  sel.addEventListener("touchstart", start);
+  sel.addEventListener("touchmove", move, { passive: false });
+  sel.addEventListener("touchend", end);
+
+  sel.addEventListener("mousedown", start);
+  sel.addEventListener("mousemove", move);
+  sel.addEventListener("mouseup", end);
+  sel.addEventListener("mouseleave", end);
+
+}
+
+function applySwipeValue(sel, date, type, value){
+
+  // ロック無効
+  if(
+    (type === "user1" && settings.lock1) ||
+    (type === "user2" && settings.lock2)
+  ){
+    return;
+  }
+
+  const key = formatDateKey(date);
+  const prev = latestData?.[key]?.[type] || "";
+
+  pushAction({
+    type: value ? "set" : "delete",
+    date: key,
+    field: type,
+    prev: prev,
+    next: value
+  });
+
+  sel.value = value;
+  applyColor(sel);
+
+  if(value === ""){
+    db.collection("calendars")
+      .doc("family-calendar")
+      .collection("days")
+      .doc(key)
+      .update({
+        [type]: firebase.firestore.FieldValue.delete()
+      });
+  } else {
+    saveData(date, type, value);
+  }
+}
+
+const guideEl = document.getElementById("swipeGuide");
+
+function showGuide(x, y){
+  guideEl.style.display = "block";
+  guideEl.style.left = x + "px";
+  guideEl.style.top = y + "px";
+
+  guideEl.innerHTML = `
+    <div class="guide-box">
+      <div class="guide up">削除</div>
+      <div class="guide down">出社</div>
+      <div class="guide left">在宅</div>
+      <div class="guide right">休日</div>
+      <div class="guide center">スワイプ</div>
+    </div>
+  `;
+}
+
+function moveGuide(x, y){
+  guideEl.style.left = x + "px";
+  guideEl.style.top = y + "px";
+}
+
+function hideGuide(){
+  guideEl.style.display = "none";
 }
 
 /* =========================
@@ -923,6 +1123,7 @@ let currentX = 0;
 let dragging = false;
 
 wrapper.addEventListener("touchstart",(e)=>{
+  if(settings.inputMode === "swipe") return;
   startX = e.touches[0].clientX;
   currentX = startX;
   dragging = true;
@@ -931,6 +1132,7 @@ wrapper.addEventListener("touchstart",(e)=>{
 });
 
 wrapper.addEventListener("touchmove",(e)=>{
+  if(settings.inputMode === "swipe") return;
   if(!dragging) return;
 
   currentX = e.touches[0].clientX;
