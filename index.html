@@ -542,7 +542,6 @@ const titleEl = document.getElementById("title");
 const ITEM_HEIGHT = 40;
 const PADDING = 60;
 
-let pickerPressTimer = null;
 let deletePressTimer = null;
 let swipePressTimer = null;
 let isLongPressClearing = false;
@@ -550,7 +549,7 @@ let gestureMode = "none";
 let actionStack = [];
 
 function startPress(){
-  pickerPressTimer = setTimeout(openPicker, 500);
+  swipePressTimer = setTimeout(openPicker, 500);
 }
 
 function cancelPress(){
@@ -571,6 +570,25 @@ let current = new Date();
 let latestData = {};
 let holidaysOfYear = {};
 let unsubscribe = null;
+
+let gesture = {
+  type: "idle",   // idle | tap | longpress | swipe
+  target: null    // 今触ってるselect要素
+};
+
+const Gesture = {
+  state: "idle",
+  timer: null,
+  startX: 0,
+  startY: 0,
+  target: null,
+
+  reset() {
+    this.state = "idle";
+    this.target = null;
+    clearTimeout(this.timer);
+  }
+};
 
 const options = ["", "出社", "在宅", "休日"];
 const week = ["日","月","火","水","木","金","土"];
@@ -814,18 +832,6 @@ function createSelect(date, type){
   sel.dataset.date = formatDateKey(date);
   sel.dataset.type = type;
 
-  // 色
-  sel.style.color = type==="user1" ? settings.color1 : settings.color2;
-
-  // ロック
-  if(
-    (type === "user1" && settings.lock1) ||
-    (type === "user2" && settings.lock2)
-  ){
-    sel.disabled = true;
-  }
-
-  // option生成
   options.forEach(o=>{
     const opt = document.createElement("option");
     opt.value = o;
@@ -833,72 +839,11 @@ function createSelect(date, type){
     sel.appendChild(opt);
   });
 
-  // ===== 通常変更 =====
-  sel.onchange = () => {
-    if(settings.globalLock) return;
-    if(isBulkApplying) return;
+  // ★統一ジェスチャー
+  attachGesture(sel, date, type);
 
-    const key = formatDateKey(date);
-    const prev = latestData?.[key]?.[type] || "";
-
-    // 履歴保存（入力・変更）
-    pushAction({
-      type: "set",
-      date: key,
-      field: type,
-      prev: prev,
-      next: sel.value
-    });
-    
-    if(sel.value === ""){
-      db.collection("calendars")
-        .doc("family-calendar")
-        .collection("days")
-        .doc(formatDateKey(date))
-        .update({
-          [type]: firebase.firestore.FieldValue.delete()
-        });
-    } else {
-      saveData(date, type, sel.value);
-    }
-
-    applyColor(sel);
-  };
-
-  sel.addEventListener("mousedown", (e) => {
-    if(settings.inputMode === "swipe"){
-      e.preventDefault(); // ←これで開かない
-    } else if(bulkMode){
-      e.preventDefault();
-    }
-  });
-
-  sel.addEventListener("touchstart", (e) => {
-    if(settings.inputMode === "swipe"){
-      e.preventDefault(); // スマホ対応
-    }
-  });
-
-  // ===== 連続入力（bulk）=====
-  sel.addEventListener("click", (e) => {
-    if(settings.globalLock) return;
-    if(isLongPressClearing) return;
-    if(!bulkMode) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    sel.blur();
-    sel.value = bulkMode;
-
-    applyColor(sel);
-    saveData(date, type, bulkMode);
-  });
-
-  // ===== 長押し削除 =====
-  addLongPressClear(sel, date, type);
-
-  addSwipeInput(sel, date, type);
+  // ★削除専用
+  attachLongPressDelete(sel, date, type);
 
   return sel;
 }
@@ -1133,6 +1078,149 @@ function moveGuide(x, y){
 
 function hideGuide(){
   guideEl.style.display = "none";
+}
+
+function attachGesture(sel, date, type){
+
+  const LONGPRESS_TIME = 400;
+  const SWIPE_THRESHOLD = 40;
+
+  let moved = false;
+
+  const getPos = (e) => {
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX, y: t.clientY };
+  };
+
+  // ===== start =====
+  const start = (e) => {
+
+    if(settings.globalLock) return;
+
+    Gesture.reset();
+    Gesture.state = "possible";
+    Gesture.target = sel;
+
+    const pos = getPos(e);
+    Gesture.startX = pos.x;
+    Gesture.startY = pos.y;
+
+    moved = false;
+
+    Gesture.timer = setTimeout(() => {
+
+      // 👉 longpress確定
+      Gesture.state = "longpress";
+
+      if(settings.inputMode === "swipe"){
+        isSwipeInputActive = true;
+      }
+
+    }, LONGPRESS_TIME);
+  };
+
+  // ===== move =====
+  const move = (e) => {
+
+    if(Gesture.state === "idle") return;
+
+    const pos = getPos(e);
+    const dx = pos.x - Gesture.startX;
+    const dy = pos.y - Gesture.startY;
+
+    if(Math.abs(dx) > 5 || Math.abs(dy) > 5){
+      moved = true;
+    }
+
+    // longpress確定前ならキャンセル
+    if(Gesture.state === "possible"){
+      clearTimeout(Gesture.timer);
+
+      // swipe判定
+      if(Math.abs(dy) > SWIPE_THRESHOLD){
+
+        Gesture.state = "swipe";
+
+        const value = dy > 0 ? "休日" : "在宅";
+
+        applySwipe(sel, date, type, value);
+        Gesture.reset();
+      }
+    }
+  };
+
+  // ===== end =====
+  const end = () => {
+
+    clearTimeout(Gesture.timer);
+
+    const state = Gesture.state;
+
+    // swipe/longpressが成立していれば何もしない
+    if(state === "swipe" || state === "longpress"){
+      Gesture.reset();
+      isSwipeInputActive = false;
+      return;
+    }
+
+    // tap扱い
+    if(!moved){
+      // 通常入力はここだけ
+    }
+
+    Gesture.reset();
+    isSwipeInputActive = false;
+  };
+
+  sel.addEventListener("touchstart", start, { passive: true });
+  sel.addEventListener("touchmove", move, { passive: false });
+  sel.addEventListener("touchend", end);
+
+  sel.addEventListener("mousedown", start);
+  sel.addEventListener("mousemove", move);
+  sel.addEventListener("mouseup", end);
+}
+
+function attachLongPressDelete(sel, date, type){
+
+  const LONGPRESS_TIME = 500;
+
+  let timer = null;
+
+  const start = () => {
+
+    timer = setTimeout(() => {
+
+      if(settings.globalLock) return;
+
+      if(isSwipeInputActive) return;
+
+      if(!sel.value) return;
+
+      // 削除実行
+      sel.value = "";
+      applyColor(sel);
+
+      db.collection("calendars")
+        .doc("family-calendar")
+        .collection("days")
+        .doc(formatDateKey(date))
+        .update({
+          [type]: firebase.firestore.FieldValue.delete()
+        });
+
+    }, LONGPRESS_TIME);
+  };
+
+  const cancel = () => clearTimeout(timer);
+
+  sel.addEventListener("touchstart", start);
+  sel.addEventListener("touchend", cancel);
+  sel.addEventListener("touchmove", cancel);
+
+  sel.addEventListener("mousedown", start);
+  sel.addEventListener("mouseup", cancel);
+  sel.addEventListener("mouseleave", cancel);
 }
 
 /* =========================
