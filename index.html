@@ -941,7 +941,7 @@ function addSwipeInput(sel, date, type){
 
       showGuide(startX, startY);
       sel.blur(); // select開かせない
-    }, 500); // ←0.5秒長押し
+    }, 300); // ←0.3秒長押し
   };
 
   const move = (e) => {
@@ -1123,7 +1123,6 @@ let currentX = 0;
 let dragging = false;
 
 wrapper.addEventListener("touchstart",(e)=>{
-  if(settings.inputMode === "swipe") return;
   startX = e.touches[0].clientX;
   currentX = startX;
   dragging = true;
