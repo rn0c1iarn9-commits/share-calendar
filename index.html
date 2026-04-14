@@ -402,24 +402,6 @@ select:disabled {
   background: #4f8cff;
 }
 
-.guide.active-work {
-  background: #ffdddd;
-  color: #b00020;
-  transform: scale(1.15);
-}
-
-.guide.active-home {
-  background: #dbe9ff;
-  color: #1a4fb3;
-  transform: scale(1.15);
-}
-
-.guide.active-dayoff {
-  background: #dcf5e3;
-  color: #1f7a3a;
-  transform: scale(1.15);
-}
-
 @keyframes slideIn {
   to {
     transform: translateX(0);
@@ -481,7 +463,7 @@ select:disabled {
   <div>
     入力モード：
     <select id="inputModeSelect">
-      <option value="normal">通常</option>
+      <option value="normal">プルダウン</option>
       <option value="swipe">スワイプ</option>
     </select>
   </div>
@@ -976,7 +958,6 @@ function addSwipeInput(sel, date, type){
   const start = (e) => {
 
     if(settings.inputMode !== "swipe") return;
-    e.stopPropagation();
 
     timer = setTimeout(() => {
       isActive = true;
@@ -991,54 +972,37 @@ function addSwipeInput(sel, date, type){
     }, 300); // ←0.3秒長押し
   };
 
-const move = (e) => {
-  if(!isActive) return;
-  e.preventDefault();
+  const move = (e) => {
+    if(!isActive) return;
+    e.preventDefault();
 
-  const touch = e.touches ? e.touches[0] : e;
+    const touch = e.touches ? e.touches[0] : e;
 
-  const dx = touch.clientX - startX;
-  const dy = touch.clientY - startY;
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
 
-  moveGuide(touch.clientX, touch.clientY);
+    moveGuide(touch.clientX, touch.clientY);
 
-  let value = null;
-  let direction = null;
+    let value = null;
 
-  if(Math.abs(dx) > Math.abs(dy)){
-    if(dx > threshold){
-      value = "休日";
-      direction = "right";
+    if(Math.abs(dx) > Math.abs(dy)){
+      // 横
+      if(dx > threshold) value = "出社";   // →右
+      if(dx < -threshold) value = "在宅";  // ←左
+    }else{
+      // 縦
+      if(dy > threshold) value = "休日";   // ↓下
+      if(dy < -threshold) value = "";     // ↑上（削除）
     }
-    if(dx < -threshold){
-      value = "在宅";
-      direction = "left";
-    }
-  }else{
-    if(dy > threshold){
-      value = "出社";
-      direction = "down";
-    }
-    if(dy < -threshold){
-      value = "";
-      direction = "up";
-    }
-  }
 
-  // ★ここ追加（リアルタイム反映）
-  if(direction){
-    highlightGuide(direction);
-  }
-
-  if(value !== null){
-    applySwipeValue(sel, date, type, value);
-    hideGuide();
-    isActive = false;
-  }
-};
+    if(value !== null){
+      applySwipeValue(sel, date, type, value);
+      hideGuide();
+      isActive = false;
+    }
+  };
 
   const end = () => {
-    e.stopPropagation();
     clearTimeout(timer);
     hideGuide();
     isActive = false;
@@ -1119,40 +1083,6 @@ function moveGuide(x, y){
 
 function hideGuide(){
   guideEl.style.display = "none";
-}
-
-function highlightGuide(direction){
-
-  const center = document.querySelector(".guide.center");
-
-  document.querySelectorAll(".guide").forEach(g=>{
-    g.classList.remove(
-      "active-work",
-      "active-home",
-      "active-dayoff",
-      "active-clear"
-    );
-  });
-
-  if(direction === "down"){
-    document.querySelector(".guide.down")?.classList.add("active-work");
-    center.textContent = "出社";
-  }
-
-  if(direction === "left"){
-    document.querySelector(".guide.left")?.classList.add("active-home");
-    center.textContent = "在宅";
-  }
-
-  if(direction === "right"){
-    document.querySelector(".guide.right")?.classList.add("active-dayoff");
-    center.textContent = "休日";
-  }
-
-  if(direction === "up"){
-    document.querySelector(".guide.up")?.classList.add("active-clear");
-    center.textContent = "削除";
-  }
 }
 
 /* =========================
