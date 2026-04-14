@@ -934,6 +934,7 @@ function addSwipeInput(sel, date, type){
 
     timer = setTimeout(() => {
       isActive = true;
+      isSwipeInputActive = true;
 
       const touch = e.touches ? e.touches[0] : e;
       startX = touch.clientX;
@@ -978,6 +979,7 @@ function addSwipeInput(sel, date, type){
     clearTimeout(timer);
     hideGuide();
     isActive = false;
+    isSwipeInputActive = false;
   };
 
   // イベント登録
@@ -1121,8 +1123,10 @@ let startX = 0;
 let startY = 0;
 let currentX = 0;
 let dragging = false;
+let isSwipeInputActive = false;
 
 wrapper.addEventListener("touchstart",(e)=>{
+  if(isSwipeInputActive) return;
   startX = e.touches[0].clientX;
   currentX = startX;
   dragging = true;
@@ -1131,7 +1135,7 @@ wrapper.addEventListener("touchstart",(e)=>{
 });
 
 wrapper.addEventListener("touchmove",(e)=>{
-  if(settings.inputMode === "swipe") return;
+  if(isSwipeInputActive) return;
   if(!dragging) return;
 
   currentX = e.touches[0].clientX;
@@ -1141,6 +1145,7 @@ wrapper.addEventListener("touchmove",(e)=>{
 });
 
 wrapper.addEventListener("touchend",(e)=>{
+  if(isSwipeInputActive) return;
   if(!dragging) return;
   dragging = false;
 
