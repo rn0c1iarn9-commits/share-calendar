@@ -978,7 +978,7 @@ function addSwipeInput(sel, date, type){
     if(settings.globalLock){
       return;
     }
-    
+
     if(settings.inputMode !== "swipe") return;
 
     timer = setTimeout(() => {
@@ -1098,9 +1098,9 @@ function showGuide(x, y){
   guideEl.innerHTML = `
     <div class="guide-box">
       <div class="guide up">削除</div>
-      <div class="guide down">出社</div>
+      <div class="guide down">休日</div>
       <div class="guide left">在宅</div>
-      <div class="guide right">休日</div>
+      <div class="guide right">出社</div>
       <div class="guide center">スワイプ</div>
     </div>
   `;
