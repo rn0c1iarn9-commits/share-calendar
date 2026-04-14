@@ -542,16 +542,19 @@ const titleEl = document.getElementById("title");
 const ITEM_HEIGHT = 40;
 const PADDING = 60;
 
-let pressTimer = null;
+let pickerPressTimer = null;
+let deletePressTimer = null;
+let swipePressTimer = null;
 let isLongPressClearing = false;
+let gestureMode = "none"; 
 let actionStack = [];
 
 function startPress(){
-  pressTimer = setTimeout(openPicker, 500);
+  pickerPressTimer = setTimeout(openPicker, 500);
 }
 
 function cancelPress(){
-  clearTimeout(pressTimer);
+  clearTimeout(swipePressTimer);
 }
 
 // スマホ
@@ -893,9 +896,7 @@ function createSelect(date, type){
   });
 
   // ===== 長押し削除 =====
-  if(settings.inputMode !== "swipe"){
-    addLongPressClear(sel, date, type);
-  }
+  addLongPressClear(sel, date, type);
 
   addSwipeInput(sel, date, type);
 
@@ -905,52 +906,56 @@ function createSelect(date, type){
 function addLongPressClear(sel, date, type){
 
   const start = () => {
-    pressTimer = setTimeout(() => {
+    deletePressTimer = setTimeout(() => {
 
       if(settings.globalLock) return;
 
-      // ロック中は無効
-      if(
-        (type === "user1" && settings.lock1) ||
-        (type === "user2" && settings.lock2)
-      ){
-        return;
-      }
+      gestureMode = "longpress";
 
-      // 値が空なら何もしない
-      if(!sel.value) return;
+      if(gestureMode === "longpress"){
 
-      isLongPressClearing = true;
+        // ロック中は無効
+        if(
+          (type === "user1" && settings.lock1) ||
+          (type === "user2" && settings.lock2)
+        ){
+          return;
+        }
 
-      pushAction({
-        type: "delete",
-        date: formatDateKey(date),
-        field: type,
-        prev: sel.value
-      });
+        // 値が空なら何もしない
+        if(!sel.value) return;
 
-      // UI更新
-      sel.value = "";
-      applyColor(sel);
+        isLongPressClearing = true;
 
-      // Firestore削除
-      db.collection("calendars")
-        .doc("family-calendar")
-        .collection("days")
-        .doc(formatDateKey(date))
-        .update({
-          [type]: firebase.firestore.FieldValue.delete()
+        pushAction({
+          type: "delete",
+          date: formatDateKey(date),
+          field: type,
+          prev: sel.value
         });
 
-      setTimeout(() => {
-        isLongPressClearing = false;
-      }, 300);
-              
+        // UI更新
+        sel.value = "";
+        applyColor(sel);
+
+        // Firestore削除
+        db.collection("calendars")
+          .doc("family-calendar")
+          .collection("days")
+          .doc(formatDateKey(date))
+          .update({
+            [type]: firebase.firestore.FieldValue.delete()
+          });
+
+        setTimeout(() => {
+          isLongPressClearing = false;
+        }, 300);
+      }       
     }, 500); // ←長押し時間
   };
 
   const cancel = () => {
-    clearTimeout(pressTimer);
+    clearTimeout(deletePressTimer);
   };
 
   // スマホ
@@ -971,7 +976,7 @@ function addSwipeInput(sel, date, type){
   let isActive = false;
   let timer = null;
 
-  const threshold = 30; // スワイプ判定距離
+  const threshold = 40; // スワイプ判定距離
 
   const start = (e) => {
 
@@ -979,9 +984,14 @@ function addSwipeInput(sel, date, type){
       return;
     }
 
+    clearTimeout(deletePressTimer);
+
+    gestureMode = "none";
+
     if(settings.inputMode !== "swipe") return;
 
-    timer = setTimeout(() => {
+    swipePressTimer = setTimeout(() => {
+      gestureMode = "longpress";
       isActive = true;
       isSwipeInputActive = true;
 
@@ -996,7 +1006,10 @@ function addSwipeInput(sel, date, type){
 
   const move = (e) => {
     if(!isActive) return;
+    if(settings.globalLock) return;
     e.preventDefault();
+
+    if(gestureMode !== "longpress") return;
 
     const touch = e.touches ? e.touches[0] : e;
 
@@ -1006,15 +1019,20 @@ function addSwipeInput(sel, date, type){
     moveGuide(touch.clientX, touch.clientY);
 
     let value = null;
+    let direction = null;
 
-    if(Math.abs(dx) > Math.abs(dy)){
-      // 横
-      if(dx > threshold) value = "出社";   // →右
-      if(dx < -threshold) value = "在宅";  // ←左
-    }else{
-      // 縦
-      if(dy > threshold) value = "休日";   // ↓下
-      if(dy < -threshold) value = "";     // ↑上（削除）
+    // ★縦スワイプだけ使う
+    if(Math.abs(dy) > threshold){
+
+      if(dy > 0){
+        value = "休日";   // ↓
+        direction = "down";
+      }
+
+      if(dy < 0){
+        value = "在宅";   // ↑
+        direction = "up";
+      }
     }
 
     if(value !== null){
@@ -1027,6 +1045,7 @@ function addSwipeInput(sel, date, type){
   const end = () => {
     clearTimeout(timer);
     hideGuide();
+    gestureMode = "none";
     isActive = false;
     isSwipeInputActive = false;
   };
@@ -1091,16 +1110,17 @@ function applySwipeValue(sel, date, type, value){
 const guideEl = document.getElementById("swipeGuide");
 
 function showGuide(x, y){
+
+  if(settings.globalLock) return;
+
   guideEl.style.display = "block";
   guideEl.style.left = x + "px";
   guideEl.style.top = y + "px";
 
   guideEl.innerHTML = `
     <div class="guide-box">
-      <div class="guide up">削除</div>
+      <div class="guide up">在宅</div>
       <div class="guide down">休日</div>
-      <div class="guide left">在宅</div>
-      <div class="guide right">出社</div>
       <div class="guide center">スワイプ</div>
     </div>
   `;
