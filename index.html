@@ -157,7 +157,6 @@ select {
   appearance: none;
   outline: none;
   height: 90%;
-  touch-action: none;
 }
 
 /* 状態カラー（少し柔らかく） */
@@ -207,18 +206,6 @@ select {
   border-radius: 50%;
   font-size: 16px;
   padding: 0;
-}
-
-.global-lock-btn {
-  position: absolute;
-  left: 12px;
-  top: 44px; /* ⚙の下 */
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-  cursor: pointer;
 }
 
 .undo-btn {
@@ -352,68 +339,6 @@ select:disabled {
   transform: scale(1.1);
 }
 
-#inputModeSelect {
-  appearance: none;
-
-  border: none;
-  border-radius: 10px;
-  font-size: 12px;
-
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-  cursor: pointer;
-
-  transition: 0.2s;
-  width: 90px;
-  text-align: center;  
-}
-
-/* ホバー（PC） */
-#inputModeSelect:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-}
-
-/* フォーカス */
-#inputModeSelect:focus {
-  outline: none;
-}
-
-#swipeGuide {
-  position: fixed;
-  z-index: 5000;
-  pointer-events: none;
-  transform: translate(-50%, -50%);
-  font-size: 12px;
-}
-
-.guide-box {
-  position: relative;
-  width: 120px;
-  height: 120px;
-}
-
-.guide {
-  position: absolute;
-  font-size: 11px;
-  background: rgba(0,0,0,0.7);
-  color: #fff;
-  padding: 4px 6px;
-  border-radius: 6px;
-}
-
-.guide.up { top: 0; left: 50%; transform: translateX(-50%); }
-.guide.down { bottom: 0; left: 50%; transform: translateX(-50%); }
-.guide.left { left: 0; top: 50%; transform: translateY(-50%); }
-.guide.right { right: 0; top: 50%; transform: translateY(-50%); }
-
-.guide.center {
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: #4f8cff;
-}
-
 @keyframes slideIn {
   to {
     transform: translateX(0);
@@ -432,15 +357,12 @@ select:disabled {
 </head>
 <body>
 
-<div id="swipeGuide" style="display:none;"></div>
-
 <!-- 固定エリア -->
 <!-- ★追加：固定エリア -->
 <div class="fixed-header">
   <!-- 月タイトルと矢印 -->
   <div class="nav-buttons">
     <button class="settings-btn" onclick="openSettings()">⚙️</button>
-    <button class="global-lock-btn" onclick="toggleGlobalLock()">🔓</button>
     <!--<button class="undo-btn" onclick="undoLastAction()">↩️</button> 一旦Undoボタンを無効化--> 
 
     <button onclick="changeMonth(-1)">←</button>
@@ -472,16 +394,6 @@ select:disabled {
 <!-- 設定 -->
 <div id="settings">
   <h3>設定</h3>
-
-  <div>
-    入力モード：
-    <select id="inputModeSelect">
-      <option value="normal">プルダウン</option>
-      <option value="swipe">スワイプ</option>
-    </select>
-  </div>
-  <br>
-  
   <div>
     <button id="lock1Btn" onclick="toggleLock('user1')">🔓</button>
     User1：<input id="name1">
@@ -542,18 +454,16 @@ const titleEl = document.getElementById("title");
 const ITEM_HEIGHT = 40;
 const PADDING = 60;
 
-let deletePressTimer = null;
-let swipePressTimer = null;
+let pressTimer = null;
 let isLongPressClearing = false;
-let gestureMode = "none"; 
 let actionStack = [];
 
 function startPress(){
-  swipePressTimer = setTimeout(openPicker, 500);
+  pressTimer = setTimeout(openPicker, 500);
 }
 
 function cancelPress(){
-  clearTimeout(swipePressTimer);
+  clearTimeout(pressTimer);
 }
 
 // スマホ
@@ -580,9 +490,7 @@ let settings = {
   color1: "#ff6666",
   color2: "#6666ff",
   lock1: false,
-  lock2: false,
-  inputMode: "normal",
-  globalLock: false
+  lock2: false
 };
 
 let bulkMode = "";
@@ -642,7 +550,6 @@ function applySettingsUI(){
 }
 
 function openSettings(){
-  inputModeSelect.value = settings.inputMode || "normal";
   document.getElementById("settings").style.display="block";
   name1.value = settings.name1;
   name2.value = settings.name2;
@@ -655,7 +562,6 @@ function closeSettings(){
 }
 
 function saveSettings(){
-  settings.inputMode = inputModeSelect.value;
   settings.name1 = name1.value;
   settings.name2 = name2.value;
   settings.color1 = color1.value;
@@ -834,7 +740,6 @@ function createSelect(date, type){
 
   // ===== 通常変更 =====
   sel.onchange = () => {
-    if(settings.globalLock) return;
     if(isBulkApplying) return;
 
     const key = formatDateKey(date);
@@ -865,22 +770,13 @@ function createSelect(date, type){
   };
 
   sel.addEventListener("mousedown", (e) => {
-    if(settings.inputMode === "swipe"){
-      e.preventDefault(); // ←これで開かない
-    } else if(bulkMode){
+    if(bulkMode){
       e.preventDefault();
-    }
-  });
-
-  sel.addEventListener("touchstart", (e) => {
-    if(settings.inputMode === "swipe"){
-      e.preventDefault(); // スマホ対応
     }
   });
 
   // ===== 連続入力（bulk）=====
   sel.addEventListener("click", (e) => {
-    if(settings.globalLock) return;
     if(isLongPressClearing) return;
     if(!bulkMode) return;
 
@@ -897,64 +793,56 @@ function createSelect(date, type){
   // ===== 長押し削除 =====
   addLongPressClear(sel, date, type);
 
-  addSwipeInput(sel, date, type);
-
   return sel;
 }
 
 function addLongPressClear(sel, date, type){
 
   const start = () => {
-    deletePressTimer = setTimeout(() => {
+    pressTimer = setTimeout(() => {
 
-      if(settings.globalLock) return;
+      // ロック中は無効
+      if(
+        (type === "user1" && settings.lock1) ||
+        (type === "user2" && settings.lock2)
+      ){
+        return;
+      }
 
-      gestureMode = "longpress";
+      // 値が空なら何もしない
+      if(!sel.value) return;
 
-      if(gestureMode === "longpress"){
+      isLongPressClearing = true;
 
-        // ロック中は無効
-        if(
-          (type === "user1" && settings.lock1) ||
-          (type === "user2" && settings.lock2)
-        ){
-          return;
-        }
+      pushAction({
+        type: "delete",
+        date: formatDateKey(date),
+        field: type,
+        prev: sel.value
+      });
 
-        // 値が空なら何もしない
-        if(!sel.value) return;
+      // UI更新
+      sel.value = "";
+      applyColor(sel);
 
-        isLongPressClearing = true;
-
-        pushAction({
-          type: "delete",
-          date: formatDateKey(date),
-          field: type,
-          prev: sel.value
+      // Firestore削除
+      db.collection("calendars")
+        .doc("family-calendar")
+        .collection("days")
+        .doc(formatDateKey(date))
+        .update({
+          [type]: firebase.firestore.FieldValue.delete()
         });
 
-        // UI更新
-        sel.value = "";
-        applyColor(sel);
-
-        // Firestore削除
-        db.collection("calendars")
-          .doc("family-calendar")
-          .collection("days")
-          .doc(formatDateKey(date))
-          .update({
-            [type]: firebase.firestore.FieldValue.delete()
-          });
-
-        setTimeout(() => {
-          isLongPressClearing = false;
-        }, 300);
-      }       
+      setTimeout(() => {
+        isLongPressClearing = false;
+      }, 300);
+              
     }, 500); // ←長押し時間
   };
 
   const cancel = () => {
-    clearTimeout(deletePressTimer);
+    clearTimeout(pressTimer);
   };
 
   // スマホ
@@ -966,172 +854,6 @@ function addLongPressClear(sel, date, type){
   sel.addEventListener("mousedown", start);
   sel.addEventListener("mouseup", cancel);
   sel.addEventListener("mouseleave", cancel);
-}
-
-function addSwipeInput(sel, date, type){
-
-  let startX = 0;
-  let startY = 0;
-  let isActive = false;
-  let timer = null;
-
-  const threshold = 40; // スワイプ判定距離
-
-  const start = (e) => {
-
-    if(settings.globalLock){
-      return;
-    }
-
-    clearTimeout(deletePressTimer);
-
-    gestureMode = "none";
-
-    if(settings.inputMode !== "swipe") return;
-
-    swipePressTimer = setTimeout(() => {
-      gestureMode = "longpress";
-      isActive = true;
-      isSwipeInputActive = true;
-
-      const touch = e.touches ? e.touches[0] : e;
-      startX = touch.clientX;
-      startY = touch.clientY;
-
-      showGuide(startX, startY);
-      sel.blur(); // select開かせない
-    }, 300); // ←0.3秒長押し
-  };
-
-  const move = (e) => {
-    if(!isActive) return;
-    if(settings.globalLock) return;
-    e.preventDefault();
-
-    if(gestureMode !== "longpress") return;
-
-    const touch = e.touches ? e.touches[0] : e;
-
-    const dx = touch.clientX - startX;
-    const dy = touch.clientY - startY;
-
-    moveGuide(touch.clientX, touch.clientY);
-
-    let value = null;
-    let direction = null;
-
-    // ★縦スワイプだけ使う
-    if(Math.abs(dy) > threshold){
-
-      if(dy > 0){
-        value = "休日";   // ↓
-        direction = "down";
-      }
-
-      if(dy < 0){
-        value = "在宅";   // ↑
-        direction = "up";
-      }
-    }
-
-    if(value !== null){
-      applySwipeValue(sel, date, type, value);
-      hideGuide();
-      isActive = false;
-    }
-  };
-
-  const end = () => {
-    clearTimeout(timer);
-    hideGuide();
-    gestureMode = "none";
-    isActive = false;
-    isSwipeInputActive = false;
-  };
-
-  // イベント登録
-  sel.addEventListener("touchstart", start);
-  sel.addEventListener("touchmove", move, { passive: false });
-  sel.addEventListener("touchend", end);
-
-  sel.addEventListener("mousedown", start);
-  sel.addEventListener("mousemove", move);
-  sel.addEventListener("mouseup", end);
-  sel.addEventListener("mouseleave", end);
-
-}
-
-function applySwipeValue(sel, date, type, value){
-
-  if(settings.globalLock){
-    hideGuide();
-    return;
-  }  
-  
-  // Globalロック無効
-  if(settings.globalLock) return;
-
-  // ロック無効
-  if(
-    (type === "user1" && settings.lock1) ||
-    (type === "user2" && settings.lock2)
-  ){
-    return;
-  }
-
-  const key = formatDateKey(date);
-  const prev = latestData?.[key]?.[type] || "";
-
-  pushAction({
-    type: value ? "set" : "delete",
-    date: key,
-    field: type,
-    prev: prev,
-    next: value
-  });
-
-  sel.value = value;
-  applyColor(sel);
-
-  if(value === ""){
-    db.collection("calendars")
-      .doc("family-calendar")
-      .collection("days")
-      .doc(key)
-      .update({
-        [type]: firebase.firestore.FieldValue.delete()
-      });
-  } else {
-    saveData(date, type, value);
-  }
-}
-
-const guideEl = document.getElementById("swipeGuide");
-
-function showGuide(x, y){
-
-  if(settings.globalLock) return;
-
-  guideEl.style.display = "block";
-  guideEl.style.left = x + "px";
-  guideEl.style.top = y + "px";
-
-  guideEl.innerHTML = `
-    <div class="guide-box">
-      <div class="guide up">在宅</div>
-      <div class="guide down">休日</div>
-      <div class="guide center">スワイプ</div>
-    </div>
-  `;
-}
-
-function moveGuide(x, y){
-  guideEl.style.left = x + "px";
-  guideEl.style.top = y + "px";
-}
-
-function hideGuide(){
-  guideEl.style.display = "none";
 }
 
 /* =========================
@@ -1199,10 +921,8 @@ let startX = 0;
 let startY = 0;
 let currentX = 0;
 let dragging = false;
-let isSwipeInputActive = false;
 
 wrapper.addEventListener("touchstart",(e)=>{
-  if(isSwipeInputActive) return;
   startX = e.touches[0].clientX;
   currentX = startX;
   dragging = true;
@@ -1211,7 +931,6 @@ wrapper.addEventListener("touchstart",(e)=>{
 });
 
 wrapper.addEventListener("touchmove",(e)=>{
-  if(isSwipeInputActive) return;
   if(!dragging) return;
 
   currentX = e.touches[0].clientX;
@@ -1221,7 +940,6 @@ wrapper.addEventListener("touchmove",(e)=>{
 });
 
 wrapper.addEventListener("touchend",(e)=>{
-  if(isSwipeInputActive) return;
   if(!dragging) return;
   dragging = false;
 
@@ -1265,8 +983,6 @@ wrapper.addEventListener("touchend",(e)=>{
 
 function fillWork(type){
 
-  if(settings.globalLock) return;
-
   if(type==="user1" && settings.lock1) return;
   if(type==="user2" && settings.lock2) return;
 
@@ -1295,14 +1011,12 @@ let isLocalEditing = false;
 
 function clearMonth(type){
 
-  if(settings.globalLock) return;
-
-  if(
-    (type === "user1" && settings.lock1) ||
-    (type === "user2" && settings.lock2)
-  ){
-    return;
-  }
+    if(
+      (type === "user1" && settings.lock1) ||
+      (type === "user2" && settings.lock2)
+    ){
+      return;
+    }
 
   if(!confirm("削除しますか？")) return;
 
@@ -1357,18 +1071,6 @@ function applyLockToUI(){
   document.querySelectorAll('select[data-type="user2"]').forEach(sel=>{
     sel.disabled = settings.lock2;
   });
-}
-
-function toggleGlobalLock(){
-  settings.globalLock = !settings.globalLock;
-
-  localStorage.setItem("settings", JSON.stringify(settings));
-  updateGlobalLockUI();
-}
-
-function updateGlobalLockUI(){
-  const btn = document.querySelector(".global-lock-btn");
-  btn.textContent = settings.globalLock ? "🔒" : "🔓";
 }
 
 function goToCurrentMonth(){ current=new Date(); generateCalendar(); }
@@ -1523,7 +1225,6 @@ function pushAction(action){
 loadSettings();
 applySettingsUI();
 updateLockUI();
-updateGlobalLockUI();
 generateCalendar();
 
 setTimeout(() => {
